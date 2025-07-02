@@ -24,10 +24,13 @@ for file in os.listdir(data_dir):
 splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
 chunks = splitter.split_documents(all_docs)
 
+CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "chroma")
+CHROMA_PDF_DIR = os.path.join(CHROMA_PERSIST_DIR, "chroma_pdf")
+
 pdf_db = Chroma.from_documents(
     documents=chunks,
     embedding=embedding,
-    persist_directory="chroma/chroma_pdf"
+    persist_directory=CHROMA_PDF_DIR
 )
 
 # pdf_db.persist()

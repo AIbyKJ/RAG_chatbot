@@ -11,7 +11,11 @@ load_dotenv()
 app = FastAPI()
 embedding = OpenAIEmbeddings()
 
-pdf_db = Chroma(persist_directory="./chroma/chroma_pdf", embedding_function=embedding)
+CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "./chroma")
+CHROMA_PDF_DIR = os.path.join(CHROMA_PERSIST_DIR, "chroma_pdf")
+CHROMA_MEMORY_DIR = os.path.join(CHROMA_PERSIST_DIR, "chroma_memory")
+
+pdf_db = Chroma(persist_directory=CHROMA_PDF_DIR, embedding_function=embedding)
 
 print(os.getenv("FAKE_LLM"))
 # Fake LLM for testing
@@ -33,7 +37,7 @@ async def clear_all_memory():
     try:
         # Import here to avoid circular imports
         from memory import clear_all_user_memory
-        await asyncio.to_thread(clear_all_user_memory, "./chroma/chroma_memory")
+        await asyncio.to_thread(clear_all_user_memory, CHROMA_MEMORY_DIR)
         return {"message": "Memory cleared for all users"}
     except Exception as e:
         return {"error": f"Failed to clear all memory: {str(e)}"}
@@ -46,15 +50,15 @@ async def clear_memory(user_id: str):
     try:
         # Import here to avoid circular imports
         from memory import clear_user_memory
-        await asyncio.to_thread(clear_user_memory, user_id, "./chroma/chroma_memory")
+        await asyncio.to_thread(clear_user_memory, user_id, CHROMA_MEMORY_DIR)
         return {"message": f"Memory cleared for user {user_id}"}
     except Exception as e:
         return {"error": f"Failed to clear memory: {str(e)}"}
 
 @app.post("/chat")
 async def chat(req: ChatRequest):
-    await asyncio.to_thread(save_user_message, req.user_id, req.message, persist_dir="./chroma/chroma_memory")
-    mem_docs = await asyncio.to_thread(retrieve_user_memory, req.user_id, req.message, 3, "./chroma/chroma_memory")
+    await asyncio.to_thread(save_user_message, req.user_id, req.message, persist_dir=CHROMA_MEMORY_DIR)
+    mem_docs = await asyncio.to_thread(retrieve_user_memory, req.user_id, req.message, 3, CHROMA_MEMORY_DIR)
     pdf_docs = await asyncio.to_thread(pdf_db.similarity_search, req.message, k=3)
 
     mem_text = "\n".join([d.page_content for d in mem_docs]) if mem_docs else "No previous conversation found."

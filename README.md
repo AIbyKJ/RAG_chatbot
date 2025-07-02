@@ -1,80 +1,155 @@
-# RAG Chatbot
+# RAG Chatbot: Azure Deployment & Local Testing Guide
 
-A simple Retrieval-Augmented Generation (RAG) chatbot using FastAPI, LangChain, and ChromaDB.
+## 1. **Install Prerequisites**
 
-## 1. Local Machine Usage
-
-1. **Install requirements**
-   ```sh
-   pip install -r requirements.txt
-   ```
-2. **Run data ingestion**
-   ```sh
-   python ingest.py
-   ```
-3. **Start the FastAPI server**
-   ```sh
-   uvicorn main:app --host 0.0.0.0 --port 8000
-   ```
-4. **Test with the chat client**
-   ```sh
-   python chat_client.py
-   ```
+- **Azure CLI:**  
+  [Install instructions (Windows, Mac, Linux)](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli)
+  - **After install, restart your terminal!**
+- **scp/ssh:**  
+  - On Windows, use [Git Bash](https://gitforwindows.org/), [WSL](https://docs.microsoft.com/en-us/windows/wsl/), or [PuTTY](https://www.putty.org/).
+  - On Mac/Linux, these are pre-installed.
 
 ---
 
-## 2. Deploy on Azure VM (Ubuntu)
+## 2. **Clone the Repository**
 
-1. **Clone the repository**
-   ```sh
-   git clone https://github.com/kittysoftpaw0510/RAG_chatbot
-   cd rag_chatbot
-   ```
-2. **Provision and prepare the VM**
-   ```sh
-   az login
-
-   az group create --name rag-chatbot-rg --location eastus
-   az vm create --resource-group rag-chatbot-rg --name rag-vm --image UbuntuLTS --admin-username azureuser --generate-ssh-keys --size Standard_DS2_v2 --output json
-
-   az disk create --resource-group rag-chatbot-rg --name rag-disk --size-gb 20 --sku Premium_LRS
-   az vm disk attach --resource-group rag-chatbot-rg --vm-name rag-vm --name rag-disk
-
-   az vm show -d -g rag-chatbot-rg -n rag-vm --query publicIps -o tsv
-   # Copy project files to VM (replace <your_vm_ip> with the actual IP)
-   scp -r ./rag_chatbot azureuser@<your_vm_ip>:/home/azureuser/rag_chatbot
-
-   # Or, using Azure CLI:
-   scp -r ./rag_chatbot azureuser@$(az vm show -d -g rag-chatbot-rg -n rag-vm --query publicIps -o tsv):/home/azureuser/rag_chatbot
-   
-   az vm open-port --port 8000 --resource-group rag-chatbot-rg --name rag-vm
-
-
-   ssh azureuser@<your_vm_ip>
-
-   sudo apt-get update
-   sudo apt-get install -y docker.io
-
-   sudo mkdir -p /mnt/azuredata
-   sudo chown azureuser:azureuser /mnt/azuredata
-
-   cd /home/azureuser/rag_chatbot
-   
-   docker build -t ragbot .
-   docker run -d -p 8000:8000 -v /mnt/azuredata:/mnt/azuredata --name rag_container ragbot
-   docker ps
-   ```
-3. **Run chat_client.py on your local machine**
-   ```sh
-   python chat_client.py
-   ```
-   (Make sure to update the API URL in `chat_client.py` to point to your VM's public IP)
+```sh
+git clone https://github.com/kittysoftpaw0510/RAG_chatbot
+cd rag_chatbot
+```
 
 ---
 
-## Notes
-- The ingestion step (`ingest.py`) must complete before starting the FastAPI server.
-- The Dockerfile is set up to run ingestion automatically before launching the server.
+## 3. **Prepare Local Data and Environment**
+
+```sh
+mkdir data
+# Copy your PDF files into the 'data' directory
+```
+
+Create a `.env` file (do NOT commit this to git!):
+```
+OPENAI_API_KEY=sk-proj-xxx
+FAKE_LLM=0
+```
+
+---
+
+## 4. **Provision and Prepare the Azure VM**
+
+```sh
+az login
+# Follow the browser/device login instructions
+
+az group create --name rag-chatbot-rg --location eastus
+
+az vm create --resource-group rag-chatbot-rg --name rag-vm --image UbuntuLTS --admin-username azureuser --generate-ssh-keys --size Standard_DS2_v2 --output json
+
+az disk create --resource-group rag-chatbot-rg --name rag-disk --size-gb 20 --sku Premium_LRS
+az vm disk attach --resource-group rag-chatbot-rg --vm-name rag-vm --name rag-disk
+
+az vm open-port --port 8000 --resource-group rag-chatbot-rg --name rag-vm
+```
+
+---
+
+## 5. **Copy Project Files to the VM**
+
+**Get your VM's public IP:**
+```sh
+az vm show -d -g rag-chatbot-rg -n rag-vm --query publicIps -o tsv
+```
+Suppose it returns `20.30.40.50`.
+
+**Copy files (from your local machine):**
+```sh
+# On Windows, use Git Bash or WSL for scp
+scp -r ./rag_chatbot azureuser@20.30.40.50:/home/azureuser/rag_chatbot
+```
+> **Troubleshooting:**  
+> - If you get a "permission denied" error, make sure you're using the same SSH key as during VM creation.
+> - If `scp` is not found, use Git Bash or WSL.
+
+---
+
+## 6. **Connect to the VM**
+
+```sh
+ssh azureuser@20.30.40.50
+```
+- **If prompted for a password:**  
+  - You should NOT need one if you used `--generate-ssh-keys`.  
+  - If you do, check your SSH key setup.
+
+---
+
+## 7. **Prepare the VM Environment**
+
+```sh
+sudo apt-get update
+sudo apt-get install -y docker.io python3 python3-pip
+sudo mkdir -p /mnt/azuredata
+sudo chown azureuser:azureuser /mnt/azuredata
+cd /home/azureuser/rag_chatbot
+```
+
+---
+
+## 8. **Build and Run the Docker Container**
+
+```sh
+docker build -t ragbot .
+docker run -d -p 8000:8000 -v /mnt/azuredata:/mnt/azuredata \
+  -e CHROMA_PERSIST_DIR=/mnt/azuredata \
+  --name rag_container ragbot
+docker ps
+```
+> **Troubleshooting:**  
+> - If you get a "permission denied" error, try `sudo docker ...` or add your user to the `docker` group.
+
+---
+
+## 9. **Test the App from Your Local Machine**
+
+**Use the provided script:**
+```sh
+python chat_client_of_Azure.py
+```
+- This script will automatically fetch your VM's public IP and connect to the chatbot.
+- **Make sure you have the Azure CLI installed and are logged in locally.**
+
+---
+
+## **Troubleshooting & Tips**
+
+- **SSH/`scp` issues:**  
+  - Use the same user (`azureuser`) and SSH key as during VM creation.
+  - On Windows, use Git Bash or WSL for `scp` and `ssh`.
+
+- **Docker issues:**  
+  - Use `sudo` if you get permission errors.
+  - Make sure Docker is running: `sudo systemctl start docker`
+
+- **API Key issues:**  
+  - Double-check your `.env` file and never commit it to git.
+
+- **Firewall/Port issues:**  
+  - Ensure port 8000 is open in Azure and not blocked by your local firewall.
+
+- **Python version:**  
+  - Use `python3` if `python` points to Python 2.x.
+
+---
+
+## **Summary Table**
+
+| Step                | Common Issues & Fixes                                 |
+|---------------------|------------------------------------------------------|
+| Azure CLI           | Restart terminal after install                        |
+| SSH/scp             | Use correct user/key, use Git Bash/WSL on Windows    |
+| Docker              | Use `sudo` if needed, ensure Docker is running       |
+| .env                | Must exist, never commit to git                      |
+| chat_client_of_Azure.py | Needs Azure CLI locally, VM must be running      |
 
 ---
 
