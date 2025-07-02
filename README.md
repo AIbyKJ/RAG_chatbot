@@ -27,7 +27,7 @@ A simple Retrieval-Augmented Generation (RAG) chatbot using FastAPI, LangChain, 
 
 1. **Clone the repository**
    ```sh
-   git clone <your_repo_url>
+   git clone https://github.com/kittysoftpaw0510/RAG_chatbot
    cd rag_chatbot
    ```
 2. **Provision and prepare the VM**
