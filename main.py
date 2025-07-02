@@ -15,7 +15,7 @@ pdf_db = Chroma(persist_directory="./chroma/chroma_pdf", embedding_function=embe
 
 print(os.getenv("FAKE_LLM"))
 # Fake LLM for testing
-if os.getenv("FAKE_LLM"):
+if bool(os.getenv("FAKE_LLM")):
     class DummyLLM:
         def predict(self, prompt):
             return "dummy response"
