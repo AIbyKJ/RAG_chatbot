@@ -164,7 +164,7 @@ python chat_client_of_Azure.py
 ---
 
 ## 3. Deploy on Azure VM (Ubuntu) for free account
-
+1. **Install required Program**
 - **Azure CLI:**  
   [Install instructions (Windows, Mac, Linux)](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli)
   - **After install, restart your terminal!**
@@ -174,7 +174,7 @@ python chat_client_of_Azure.py
 
 ---
 
-## 2. **Clone the Repository**
+2. **Clone the Repository**
 
 ```sh
 git clone https://github.com/kittysoftpaw0510/RAG_chatbot
@@ -183,7 +183,7 @@ cd rag_chatbot
 
 ---
 
-## 3. **Prepare Local Data and Environment**
+3. **Prepare Local Data and Environment**
 
 ```sh
 mkdir data
@@ -198,7 +198,7 @@ FAKE_LLM=0
 
 ---
 
-## 4. **Provision and Prepare the Azure VM**
+4. **Provision and Prepare the Azure VM**
 
 ```sh
 az login
@@ -213,7 +213,7 @@ az vm open-port --port 8000 --resource-group rag-chatbot-rg --name rag-vm
 
 ---
 
-## 5. **Copy Project Files to the VM**
+5. **Copy Project Files to the VM**
 
 **Get your VM's public IP:**
 ```sh
@@ -232,7 +232,7 @@ scp -r ./rag_chatbot azureuser@20.30.40.50:/home/azureuser/rag_chatbot
 
 ---
 
-## 6. **Connect to the VM**
+6. **Connect to the VM**
 
 ```sh
 ssh azureuser@20.30.40.50
@@ -243,7 +243,7 @@ ssh azureuser@20.30.40.50
 
 ---
 
-## 7. **Prepare the VM Environment**
+7. **Prepare the VM Environment**
 
 ```sh
 sudo apt-get update
@@ -253,7 +253,7 @@ cd /home/azureuser/rag_chatbot
 
 ---
 
-## 8. **Build and Run the Docker Container**
+8. **Build and Run the Docker Container**
 
 ```sh
 docker build -t ragbot .
@@ -267,7 +267,7 @@ docker ps
 
 ---
 
-## 9. **Test the App from Your Local Machine**
+9. **Test the App from Your Local Machine**
 
 **Use the provided script:**
 ```sh
