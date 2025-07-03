@@ -17,15 +17,7 @@ CHROMA_MEMORY_DIR = os.path.join(CHROMA_PERSIST_DIR, "chroma_memory")
 
 pdf_db = Chroma(persist_directory=CHROMA_PDF_DIR, embedding_function=embedding)
 
-print(os.getenv("FAKE_LLM"))
-# Fake LLM for testing
-if bool(os.getenv("FAKE_LLM")):
-    class DummyLLM:
-        def predict(self, prompt):
-            return "dummy response"
-    llm = DummyLLM()
-else:
-    llm = ChatOpenAI(model="gpt-4", temperature=0)
+llm = ChatOpenAI(model="gpt-4o", temperature=0)
 
 class ChatRequest(BaseModel):
     user_id: str

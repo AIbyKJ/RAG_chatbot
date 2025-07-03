@@ -1,6 +1,48 @@
 # RAG Chatbot: Azure Deployment & Local Testing Guide
 
-## 1. **Install Prerequisites**
+# RAG Chatbot
+
+A simple Retrieval-Augmented Generation (RAG) chatbot using FastAPI, LangChain, and ChromaDB.
+
+## 1. Local Machine Usage
+
+1. **Clone the repository**
+   ```sh
+   git clone https://github.com/kittysoftpaw0510/RAG_chatbot
+   cd rag_chatbot
+   ```
+2. **Install requirements**
+   ```sh
+   pip install -r requirements.txt
+   ```
+3. **Set Environment of Project**
+   ```sh
+   mkdir data
+   ```
+   Copy your pdf files into 'data' directory.
+4. **Create .env file**
+   ```
+   Make new .env file or copy and paste .env.example.
+   And type like below.
+   OPENAI_API_KEY= sk-proj-xxx
+   FAKE_LLM=0
+   ```
+5. **Run data ingestion**
+   ```sh
+   python ingest.py
+   ```
+6. **Start the FastAPI server**
+   ```sh
+   uvicorn main:app --host 0.0.0.0 --port 8000
+   ```
+7. **Test with the chat client**
+   ```sh
+   python chat_client.py
+   ```
+
+---
+
+## 2. Deploy on Azure VM (Ubuntu)
 
 - **Azure CLI:**  
   [Install instructions (Windows, Mac, Linux)](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli)
