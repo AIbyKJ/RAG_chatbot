@@ -130,8 +130,8 @@ ssh azureuser@20.30.40.50
 ```sh
 sudo apt-get update
 sudo apt-get install -y docker.io python3 python3-pip
-sudo mkdir -p /mnt/azuredata
-sudo chown azureuser:azureuser /mnt/azuredata
+# sudo mkdir -p /mnt/azuredata
+# sudo chown azureuser:azureuser /mnt/azuredata
 cd /home/azureuser/rag_chatbot
 ```
 
@@ -143,6 +143,121 @@ cd /home/azureuser/rag_chatbot
 docker build -t ragbot .
 docker run -d -p 8000:8000 -v /mnt/azuredata:/mnt/azuredata \
   -e CHROMA_PERSIST_DIR=/mnt/azuredata \
+  --name rag_container ragbot
+docker ps
+```
+> **Troubleshooting:**  
+> - If you get a "permission denied" error, try `sudo docker ...` or add your user to the `docker` group.
+
+---
+
+## 9. **Test the App from Your Local Machine**
+
+**Use the provided script:**
+```sh
+python chat_client_of_Azure.py
+```
+- This script will automatically fetch your VM's public IP and connect to the chatbot.
+- **Make sure you have the Azure CLI installed and are logged in locally.**
+
+---
+
+## 3. Deploy on Azure VM (Ubuntu) for free account
+
+- **Azure CLI:**  
+  [Install instructions (Windows, Mac, Linux)](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli)
+  - **After install, restart your terminal!**
+- **scp/ssh:**  
+  - On Windows, use [Git Bash](https://gitforwindows.org/), [WSL](https://docs.microsoft.com/en-us/windows/wsl/), or [PuTTY](https://www.putty.org/).
+  - On Mac/Linux, these are pre-installed.
+
+---
+
+## 2. **Clone the Repository**
+
+```sh
+git clone https://github.com/kittysoftpaw0510/RAG_chatbot
+cd rag_chatbot
+```
+
+---
+
+## 3. **Prepare Local Data and Environment**
+
+```sh
+mkdir data
+# Copy your PDF files into the 'data' directory
+```
+
+Create a `.env` file (do NOT commit this to git!):
+```
+OPENAI_API_KEY=sk-proj-xxx
+FAKE_LLM=0
+```
+
+---
+
+## 4. **Provision and Prepare the Azure VM**
+
+```sh
+az login
+# Follow the browser/device login instructions
+
+az group create --name rag-chatbot-rg --location eastus
+
+az vm create --resource-group rag-chatbot-rg --name rag-vm --image UbuntuLTS --admin-username azureuser --generate-ssh-keys --size Standard_B1s --output json
+
+az vm open-port --port 8000 --resource-group rag-chatbot-rg --name rag-vm
+```
+
+---
+
+## 5. **Copy Project Files to the VM**
+
+**Get your VM's public IP:**
+```sh
+az vm show -d -g rag-chatbot-rg -n rag-vm --query publicIps -o tsv
+```
+Suppose it returns `20.30.40.50`.
+
+**Copy files (from your local machine):**
+```sh
+# On Windows, use Git Bash or WSL for scp
+scp -r ./rag_chatbot azureuser@20.30.40.50:/home/azureuser/rag_chatbot
+```
+> **Troubleshooting:**  
+> - If you get a "permission denied" error, make sure you're using the same SSH key as during VM creation.
+> - If `scp` is not found, use Git Bash or WSL.
+
+---
+
+## 6. **Connect to the VM**
+
+```sh
+ssh azureuser@20.30.40.50
+```
+- **If prompted for a password:**  
+  - You should NOT need one if you used `--generate-ssh-keys`.  
+  - If you do, check your SSH key setup.
+
+---
+
+## 7. **Prepare the VM Environment**
+
+```sh
+sudo apt-get update
+sudo apt-get install -y docker.io python3 python3-pip
+cd /home/azureuser/rag_chatbot
+```
+
+---
+
+## 8. **Build and Run the Docker Container**
+
+```sh
+docker build -t ragbot .
+docker run -d -p 8000:8000 \
+  -e CHROMA_PERSIST_DIR=/home/azureuser/rag_chatbot/data \
   --name rag_container ragbot
 docker ps
 ```
