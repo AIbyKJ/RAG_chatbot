@@ -106,6 +106,7 @@ Suppose it returns `20.30.40.50`.
 
 **Copy files (from your local machine):**
 ```sh
+cd ..
 # On Windows, use Git Bash or WSL for scp
 scp -r ./rag_chatbot azureuser@20.30.40.50:/home/azureuser/rag_chatbot
 ```
@@ -223,6 +224,7 @@ Suppose it returns `20.30.40.50`.
 
 **Copy files (from your local machine):**
 ```sh
+cd ..
 # On Windows, use Git Bash or WSL for scp
 scp -r ./rag_chatbot azureuser@20.30.40.50:/home/azureuser/rag_chatbot
 ```
