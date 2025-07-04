@@ -1,4 +1,5 @@
 import os
+import argparse
 
 from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
@@ -11,21 +12,17 @@ print("Loading environment variables...")
 load_dotenv(".env")
 print("OPENAI_API_KEY:", os.getenv("OPENAI_API_KEY"))
 
-# Ask user if they want to clear previous PDF data
-def ask_clear_pdf():
-    while True:
-        ans = input("Do you want to clear previous PDF data before ingesting? (y/n): ").strip().lower()
-        if ans in ("y", "yes"):
-            clear_all_pdf()
-            print("Previous PDF data cleared.")
-            break
-        elif ans in ("n", "no"):
-            print("Keeping previous PDF data.")
-            break
-        else:
-            print("Please enter 'y' or 'n'.")
+# Parse command line arguments
+parser = argparse.ArgumentParser(description="Ingest PDF files into ChromaDB")
+parser.add_argument("--clear-pdf", action="store_true", help="Clear previous PDF data before ingesting")
+args = parser.parse_args()
 
-ask_clear_pdf()
+# Clear PDF data if requested
+if args.clear_pdf:
+    clear_all_pdf()
+    print("Previous PDF data cleared.")
+else:
+    print("Keeping previous PDF data.")
 
 embedding = OpenAIEmbeddings()
 
