@@ -5,10 +5,27 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
+from clean import clear_all_pdf, CHROMA_PDF_DIR
 
 print("Loading environment variables...")
 load_dotenv(".env")
 print("OPENAI_API_KEY:", os.getenv("OPENAI_API_KEY"))
+
+# Ask user if they want to clear previous PDF data
+def ask_clear_pdf():
+    while True:
+        ans = input("Do you want to clear previous PDF data before ingesting? (y/n): ").strip().lower()
+        if ans in ("y", "yes"):
+            clear_all_pdf()
+            print("Previous PDF data cleared.")
+            break
+        elif ans in ("n", "no"):
+            print("Keeping previous PDF data.")
+            break
+        else:
+            print("Please enter 'y' or 'n'.")
+
+ask_clear_pdf()
 
 embedding = OpenAIEmbeddings()
 
