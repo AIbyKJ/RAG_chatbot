@@ -10,7 +10,7 @@ from clean import clear_all_pdf, CHROMA_PDF_DIR
 
 print("Loading environment variables...")
 load_dotenv(".env")
-print("OPENAI_API_KEY:", os.getenv("OPENAI_API_KEY"))
+# print("OPENAI_API_KEY:", os.getenv("OPENAI_API_KEY"))
 
 # Parse command line arguments
 parser = argparse.ArgumentParser(description="Ingest PDF files into ChromaDB")
