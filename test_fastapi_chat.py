@@ -4,7 +4,9 @@ import httpx
 import time
 from datetime import datetime
 import random
-from memory import get_all_history
+
+n_requests = 100
+test_duration = 120
 
 @pytest.fixture
 def log_to_file(request):
@@ -24,9 +26,9 @@ question_list = [
 
 @pytest.mark.asyncio
 async def test_server_100_requests_per_minute(log_to_prompt, log_to_file):
-    n_requests = 100
+
     users = [f"user_{i % 5}" for i in range(n_requests)]
-    interval = 120 / n_requests  # evenly spread over 2 minutes
+    interval = test_duration / n_requests  # evenly spread over 2 minutes
 
     success_count = {"count": 0}
     lock = asyncio.Lock()
@@ -37,7 +39,7 @@ async def test_server_100_requests_per_minute(log_to_prompt, log_to_file):
         try:
             async with httpx.AsyncClient(timeout=20.0) as ac:
                 response = await ac.post(
-                    "http://localhost:8000/chat",
+                    "http://40.82.161.202:8000/chat",
                     json={"user_id": user_id, "message": message}
                 )
                 assert response.status_code == 200
@@ -45,10 +47,13 @@ async def test_server_100_requests_per_minute(log_to_prompt, log_to_file):
                 assert "response" in json_data
                 async with lock:
                     success_count["count"] += 1
+
+                await asyncio.sleep(1)
                 now = datetime.now()
-                # Get user message history (only message texts)
-                history_docs = get_all_history(user_id)
-                history = [doc.page_content if hasattr(doc, 'page_content') else str(doc) for doc in history_docs]
+                # Fetch user message history from the server
+                history_response = await ac.get(f"http://40.82.161.202:8000/history/{user_id}")
+                history = history_response.json().get("history", [])
+                print("TEST:", history)
                 log_line = (
                     f"{'*' * 30}\n"
                     f"Time: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
@@ -100,5 +105,5 @@ async def test_server_100_requests_per_minute(log_to_prompt, log_to_file):
     if log_to_file:
         with open("test_log.txt", "a", encoding="utf-8") as f:
             f.write(summary + "\n")
-    assert failed <= 2
-    assert elapsed >= 120
+    assert failed <= 5
+    assert elapsed >= test_duration

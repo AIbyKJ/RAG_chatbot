@@ -29,3 +29,30 @@ def clear_all_pdf(persist_dir=CHROMA_PDF_DIR):
         shutil.rmtree(persist_dir)
     os.makedirs(persist_dir, exist_ok=True)
     # Optionally, you could also use Chroma's delete_collection if you use named collections for PDFs
+
+
+def clear_pdf_by_source(source_name, persist_dir=CHROMA_PDF_DIR):
+    """Delete all PDF data for a specific source using Chroma API."""
+    db = Chroma(
+        persist_directory=persist_dir,
+        embedding_function=embedding
+    )
+    
+    # Get all documents and their metadata
+    all_docs = db.get()
+    
+    if not all_docs["ids"]:
+        return  # No documents to delete
+    
+    # Find documents with matching source
+    ids_to_delete = []
+    for i, metadata in enumerate(all_docs["metadatas"]):
+        if metadata.get("source") == source_name:
+            ids_to_delete.append(all_docs["ids"][i])
+    
+    # Delete documents with matching source
+    if ids_to_delete:
+        db.delete(ids=ids_to_delete)
+        print(f"Deleted {len(ids_to_delete)} documents from source: {source_name}")
+    else:
+        print(f"No documents found with source: {source_name}")

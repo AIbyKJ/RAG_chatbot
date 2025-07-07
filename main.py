@@ -4,9 +4,9 @@ from pydantic import BaseModel
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from dotenv import load_dotenv
-from memory import save_user_message, retrieve_user_memory, clear_all_user_memory, clear_user_memory
+from memory import save_user_message, retrieve_user_memory, get_all_history
+from clean import clear_all_pdf, clear_all_memory, clear_memory_by_user
 import os
-from clean import clear_all_pdf
 
 load_dotenv()
 app = FastAPI()
@@ -25,10 +25,10 @@ class ChatRequest(BaseModel):
     message: str
 
 @app.delete("/memory")
-async def clear_all_memory():
+async def clear_all_memory_endpoint():
     """Clear all memory for all users."""
     try:
-        await asyncio.to_thread(clear_all_user_memory)
+        await asyncio.to_thread(clear_all_memory)
         return {"message": "Memory cleared for all users."}
     except Exception as e:
         return {"error": f"Failed to clear all memory: {str(e)}"}
@@ -37,10 +37,29 @@ async def clear_all_memory():
 async def clear_memory(user_id: str):
     """Clear all memory for a specific user."""
     try:
-        await asyncio.to_thread(clear_user_memory, user_id)
+        await asyncio.to_thread(clear_memory_by_user, user_id)
         return {"message": f"Memory cleared for user {user_id}."}
     except Exception as e:
         return {"error": f"Failed to clear memory: {str(e)}"}
+    
+@app.delete("/pdf/{source_name}")
+async def clear_pdf_by_source_endpoint(source_name: str):
+    """Clear PDF data for a specific source name."""
+    try:
+        from clean import clear_pdf_by_source
+        await asyncio.to_thread(clear_pdf_by_source, source_name, CHROMA_PDF_DIR)
+        return {"message": f"PDF data cleared for source {source_name}."}
+    except Exception as e:
+        return {"error": f"Failed to clear PDF data for source {source_name}: {str(e)}"}
+
+@app.delete("/pdf")
+async def clear_all_pdf_endpoint():
+    """Clear all PDF data."""
+    try:
+        await asyncio.to_thread(clear_all_pdf, CHROMA_PDF_DIR)
+        return {"message": "All PDF data cleared."}
+    except Exception as e:
+        return {"error": f"Failed to clear all PDF data: {str(e)}"}
 
 @app.post("/chat")
 async def chat(req: ChatRequest):
@@ -74,3 +93,8 @@ async def clear_all_pdf_endpoint():
         return {"message": "All PDF data cleared."}
     except Exception as e:
         return {"error": f"Failed to clear PDF data: {str(e)}"}
+
+@app.get("/history/{user_id}")
+async def get_history(user_id: str):
+    docs = await asyncio.to_thread(get_all_history, user_id)
+    return {"history": [doc.page_content if hasattr(doc, 'page_content') else str(doc) for doc in docs]}

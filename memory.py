@@ -59,26 +59,6 @@ def retrieve_user_memory(user_id, query, k=3, persist_dir=None):
     )
     return db.similarity_search(query, k=k)
 
-
-def clear_user_memory(user_id, persist_dir="chroma/chroma_memory"):
-    """Clear all memory for a specific user"""
-    db = Chroma(
-        collection_name=f"user_{user_id}",
-        embedding_function=embedding,
-        persist_directory=persist_dir
-    )
-    db.delete_collection()
-    
-def clear_all_user_memory(persist_dir="chroma/chroma_memory"):
-    """Clear all memory for all users"""
-    import os
-    import shutil
-    
-    # Remove the entire persist directory to clear all collections
-    if os.path.exists(persist_dir):
-        shutil.rmtree(persist_dir)
-        os.makedirs(persist_dir, exist_ok=True)
-
 def get_all_history(user_id, persist_dir=None):
     if persist_dir is None:
         persist_dir = CHROMA_MEMORY_DIR
