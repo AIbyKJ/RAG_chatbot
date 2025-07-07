@@ -45,7 +45,7 @@ async def clear_memory(user_id: str):
 @app.post("/chat")
 async def chat(req: ChatRequest):
     await asyncio.to_thread(save_user_message, req.user_id, req.message, persist_dir=CHROMA_MEMORY_DIR)
-    mem_docs = await asyncio.to_thread(retrieve_user_memory, req.user_id, req.message, 7, CHROMA_MEMORY_DIR)
+    mem_docs = await asyncio.to_thread(retrieve_user_memory, req.user_id, req.message, 3, CHROMA_MEMORY_DIR)
     pdf_docs = await asyncio.to_thread(pdf_db.similarity_search, req.message, k=3)
 
     mem_text = "\n".join([d.page_content for d in mem_docs]) if mem_docs else "No previous conversation found."

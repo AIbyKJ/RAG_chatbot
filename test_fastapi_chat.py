@@ -4,6 +4,7 @@ import httpx
 import time
 from datetime import datetime
 import random
+from memory import get_all_history
 
 @pytest.fixture
 def log_to_file(request):
@@ -16,7 +17,7 @@ def log_to_prompt(request):
 question_list = [
     "Who is Elara?",
     "Who is Barnaby?",
-    "My name is Sander?",
+    "My name is Sander",
     "What is my name?",
     "Where Elara lives?"
 ]
@@ -45,6 +46,9 @@ async def test_server_100_requests_per_minute(log_to_prompt, log_to_file):
                 async with lock:
                     success_count["count"] += 1
                 now = datetime.now()
+                # Get user message history (only message texts)
+                history_docs = get_all_history(user_id)
+                history = [doc.page_content if hasattr(doc, 'page_content') else str(doc) for doc in history_docs]
                 log_line = (
                     f"{'*' * 30}\n"
                     f"Time: {now.strftime('%Y-%m-%d %H:%M:%S')}\n"
@@ -53,6 +57,7 @@ async def test_server_100_requests_per_minute(log_to_prompt, log_to_file):
                     f"Message: {message}\n"
                     f"Response: {json_data['response']}\n"
                     f"Prompt: {json_data.get('prompt', 'N/A')}\n"
+                    f"Full History: {history}\n"
                     f"{'*' * 30}\n"
                 )
                 if log_to_prompt:
