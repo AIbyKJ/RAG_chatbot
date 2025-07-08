@@ -178,6 +178,7 @@ def get_pdf_sources():
         embedding_function=embedding
     )
     all_docs = db.get()
+    # print(all_docs)
     sources = set()
     for meta in all_docs["metadatas"]:
         if "source" in meta:

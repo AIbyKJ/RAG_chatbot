@@ -1,8 +1,8 @@
 import requests
 import os
 
-# BASE_URL = "http://127.0.0.1:8000"
-BASE_URL = "http://40.82.161.202:8000"
+BASE_URL = "http://127.0.0.1:8000"
+# BASE_URL = "http://40.82.161.202:8000"
 
 def upload_folder():
     folder_path = input("Enter the folder path containing PDFs to upload: ").strip()
@@ -111,6 +111,20 @@ def ingest_pdf_by_filename():
         print("Error:", res.json().get("error", f"Failed to ingest {filename}."))
 
 
+def list_available_pdfs():
+    res = requests.get(f"{BASE_URL}/pdf")
+    if res.status_code == 200:
+        pdfs = res.json().get("pdfs", [])
+        if pdfs:
+            print("Available PDFs in data folder:")
+            for i, pdf in enumerate(pdfs, 1):
+                print(f"{i}. {pdf}")
+        else:
+            print("No PDFs found in data folder.")
+    else:
+        print("Error fetching PDFs.")
+
+
 def show_menu():
     print("\n=== PDF Data Management ===")
     print("1. Upload all PDFs in a folder")
@@ -119,8 +133,9 @@ def show_menu():
     print("4. Remove PDF by filename")
     print("5. Ingest all PDFs")
     print("6. Ingest PDF by filename")
-    print("7. Exit")
-    choice = input("\nEnter your choice (1-7): ").strip()
+    print("7. List available PDFs in data folder")
+    print("8. Exit")
+    choice = input("\nEnter your choice (1-8): ").strip()
     if choice == "1":
         upload_folder()
     elif choice == "2":
@@ -134,6 +149,8 @@ def show_menu():
     elif choice == "6":
         ingest_pdf_by_filename()
     elif choice == "7":
+        list_available_pdfs()
+    elif choice == "8":
         print("Exiting...")
         return False
     else:

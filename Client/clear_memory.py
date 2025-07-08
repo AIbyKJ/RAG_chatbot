@@ -1,8 +1,8 @@
 import requests
 import os
 
-# BASE_URL = "http://127.0.0.1:8000"
-BASE_URL = "http://40.82.161.202:8000"
+BASE_URL = "http://127.0.0.1:8000"
+# BASE_URL = "http://40.82.161.202:8000"
 
 def clear_all_chat_history():
     """Clear all chat history memory for all users."""
@@ -87,18 +87,44 @@ def clear_all_vectordb_memory():
     clear_all_pdf()
     clear_all_chat_history()
 
+def list_available_users():
+    res = requests.get(f"{BASE_URL}/users")
+    if res.status_code == 200:
+        users = res.json().get("user_ids", [])
+        if users:
+            print("Available users:")
+            for i, user in enumerate(users, 1):
+                print(f"{i}. {user}")
+        else:
+            print("No users found.")
+    else:
+        print("Error fetching users.")
+
+def list_pdfs_in_chroma():
+    res = requests.get(f"{BASE_URL}/vectordb/pdf/sources")
+    if res.status_code == 200:
+        sources = res.json().get("sources", [])
+        if sources:
+            print("Available PDFs in vectordb:")
+            for i, source in enumerate(sources, 1):
+                print(f"{i}. {os.path.basename(source)}")
+        else:
+            print("No PDFs found in vectordb.")
+    else:
+        print("Error fetching PDFs from vectordb.")
+
+
 def show_menu():
-    """Display menu options for memory and PDF clearing operations."""
     print("\n=== Memory and PDF Management ===")
     print("1. Clear chat history for all users")
     print("2. Clear chat history for specific user")
     print("3. Clear all PDF data")
     print("4. Clear PDF data by filename")
     print("5. Clear all vectordb memory")
-    print("6. Exit")
-    
-    choice = input("\nEnter your choice (1-6): ").strip()
-    
+    print("6. List available users")
+    print("7. List available PDFs in vectordb (ChromaDB)")
+    print("8. Exit")
+    choice = input("\nEnter your choice (1-8): ").strip()
     if choice == "1":
         clear_all_chat_history()
     elif choice == "2":
@@ -110,11 +136,14 @@ def show_menu():
     elif choice == "5":
         clear_all_vectordb_memory()
     elif choice == "6":
+        list_available_users()
+    elif choice == "7":
+        list_pdfs_in_chroma()
+    elif choice == "8":
         print("Exiting...")
         return False
     else:
         print("Invalid choice. Please try again.")
-    
     return True
 
 
