@@ -1,11 +1,13 @@
 import requests
 
-API = "http://40.82.161.202:8000/chat"
+BASE_URL = "http://127.0.0.1:8000"
+# BASE_URL = "http://40.82.161.202:8000"
+
 def print_history(user_id):
-    history_api = f"http://40.82.161.202:8000/history/{user_id}"
+    history_api = f"{BASE_URL}/chat/history/{user_id}"
     try:
         res = requests.get(history_api)
-        print("ahsdflkhaskjld")
+        print("*" * 10)
         if res.status_code == 200:
             history = res.json().get("history", [])
             print("\n--- User Message History ---")
@@ -18,11 +20,13 @@ def print_history(user_id):
         print(f"Error fetching history: {e}")
 
 def chat():
-    user_id = "user6"
+    chat_api = f"{BASE_URL}/chat"
+
+    user_id = "user_6"
     while True:
         msg = input("You: ")
         if msg.lower() in ("exit", "quit"): break
-        res = requests.post(API, json={"user_id": user_id, "message": msg})
+        res = requests.post(chat_api, json={"user_id": user_id, "message": msg})
         print_history(user_id)
 
         print("Prompt: ", res.json()["prompt"])

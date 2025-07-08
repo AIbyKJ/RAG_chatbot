@@ -9,5 +9,6 @@ tiktoken
 langchain-community
 langchain-openai
 langchain_chroma
-pytest
-pytest-asyncio
+python-multipart
+# pytest
+# pytest-asyncio
