@@ -134,10 +134,25 @@ sudo apt-get install -y docker.io python3 python3-pip
 # sudo chown azureuser:azureuser /mnt/azuredata
 cd /home/azureuser/rag_chatbot
 ```
+---
+8. **Mount External Disk**
+```sh
+# Create a new partition (n), write (w)
+sudo fdisk /dev/sdc
+
+# Format the new partition
+sudo mkfs.ext4 /dev/sdc1
+
+# Create the mount point
+sudo mkdir -p /mnt/azuredata
+
+# Mount the disk
+sudo mount /dev/sdc1 /mnt/azuredata
+```
 
 ---
 
-8. **Build and Run the Docker Container**
+9. **Build and Run the Docker Container**
 
 ```sh
 docker build -t ragbot .
@@ -151,7 +166,7 @@ docker ps
 
 ---
 
-9. **Test the App from Your Local Machine**
+10. **Test the App from Your Local Machine**
 
 **Use the provided script:**
 ```sh
