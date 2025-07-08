@@ -13,7 +13,7 @@ from llm import LanguageModel
 load_dotenv()
 app = FastAPI()
 
-chatmodel = LanguageModel(fake_model=True)
+chatmodel = LanguageModel()
 
 class ChatRequest(BaseModel):
     user_id: str
