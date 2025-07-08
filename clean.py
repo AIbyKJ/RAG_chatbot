@@ -1,7 +1,6 @@
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
 import os
-from memory import clear_user_memory
 
 CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "chroma")
 CHROMA_MEMORY_DIR = os.path.join(CHROMA_PERSIST_DIR, "chroma_memory")
@@ -19,7 +18,12 @@ def clear_all_memory():
 
 def clear_memory_by_user(user_id):
     """Delete memory for a specific user using the Chroma API (recommended)."""
-    clear_user_memory(user_id, persist_dir=CHROMA_MEMORY_DIR)
+    db = Chroma(
+        collection_name=f"user_{user_id}",
+        embedding_function=embedding,
+        persist_directory=CHROMA_MEMORY_DIR
+    )
+    db.delete_collection()
 
 
 def clear_all_pdf(persist_dir=CHROMA_PDF_DIR):

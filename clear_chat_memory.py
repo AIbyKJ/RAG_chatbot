@@ -69,4 +69,4 @@ def show_menu():
 
 
 if __name__ == "__main__":
-    clear_all_memory()
+    show_menu()
