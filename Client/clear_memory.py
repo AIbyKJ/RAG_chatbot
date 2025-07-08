@@ -1,6 +1,8 @@
 import requests
+import os
 
-BASE_URL = "http://127.0.0.1:8000"
+# BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = "http://40.82.161.202:8000"
 
 def clear_all_chat_history():
     """Clear all chat history memory for all users."""
@@ -55,22 +57,22 @@ def clear_all_pdf():
 def clear_pdf_by_name():
     """Clear PDF data for a specific source name."""
     try:
-        res = requests.get(f"{BASE_URL}/pdf")
+        res = requests.get(f"{BASE_URL}/vectordb/pdf/sources")
         if res.status_code == 200:
-            pdfs = res.json().get("pdfs", [])
-            if pdfs:
-                print("Available PDFs:")
-                for i, pdf in enumerate(pdfs, 1):
-                    print(f"{i}. {pdf}")
+            sources = res.json().get("sources", [])
+            if sources:
+                print("Available PDF sources in vectordb:")
+                for i, source in enumerate(sources, 1):
+                    print(f"{i}. {os.path.basename(source)}")
                 print()
             else:
-                print("No PDFs found in the database.")
+                print("No PDF sources found in vectordb.")
         else:
-            print("Failed to fetch available PDFs.")
+            print("Failed to fetch available PDF sources.")
     except Exception as e:
-        print(f"Error fetching available PDFs: {e}")
+        print(f"Error fetching available PDF sources: {e}")
     
-    source_name = input("Enter PDF source name to clear: ").strip()
+    source_name = input("Enter the file name of the PDF to clear (as shown above): ").strip()
     if not source_name:
         print("Source name cannot be empty.")
         return

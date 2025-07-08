@@ -171,3 +171,15 @@ def get_available_user_ids():
         if match:
             user_ids.append(match.group(1))
     return user_ids
+
+def get_pdf_sources():
+    db = Chroma(
+        persist_directory=CHROMA_PDF_DIR,
+        embedding_function=embedding
+    )
+    all_docs = db.get()
+    sources = set()
+    for meta in all_docs["metadatas"]:
+        if "source" in meta:
+            sources.add(meta["source"])
+    return list(sources)

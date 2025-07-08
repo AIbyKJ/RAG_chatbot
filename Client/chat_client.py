@@ -1,7 +1,7 @@
 import requests
 
-BASE_URL = "http://127.0.0.1:8000"
-# BASE_URL = "http://40.82.161.202:8000"
+# BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = "http://40.82.161.202:8000"
 
 def print_history(user_id):
     history_api = f"{BASE_URL}/chat/history/{user_id}"

@@ -9,6 +9,7 @@ from ingest import ingest_all_pdfs, ingest_one_pdf, DATA_DIR, get_available_pdfs
 from vectordb import *
 from vectordb import get_available_user_ids
 from llm import LanguageModel
+from vectordb import get_pdf_sources
 
 load_dotenv()
 app = FastAPI()
@@ -25,13 +26,14 @@ class ChatRequest(BaseModel):
 # Main chat endpoint
 @app.post("/chat")
 async def chat(req: ChatRequest):
-    await asyncio.to_thread(save_user_message, req.user_id, req.message)
     mem_docs = await asyncio.to_thread(retrieve_user_memory, req.user_id, req.message, k=3)
     pdf_docs = await asyncio.to_thread(retrieve_pdf, req.message, k=3)
 
     mem_text = "\n".join([d.page_content for d in mem_docs]) if mem_docs else "No previous conversation found."
     pdf_text = "\n".join([d.page_content for d in pdf_docs]) if pdf_docs else "No relevant documents found."
 
+    await asyncio.to_thread(save_user_message, req.user_id, req.message)
+    
     prompt = f"""
     Previous conversation:
     {mem_text}
@@ -97,6 +99,12 @@ async def clear_pdf_by_source_endpoint(source_name: str):
     except Exception as e:
         return {"error": f"Failed to clear PDF data for source {source_name}: {str(e)}"}
 
+# List available PDF sources in vectordb
+@app.get("/vectordb/pdf/sources")
+async def get_pdf_sources_endpoint():
+    sources = await asyncio.to_thread(get_pdf_sources)
+    return {"sources": sources}
+
 # =====================================================================================
 
 # 1. Upload PDF(s) endpoint
@@ -158,3 +166,5 @@ async def get_available_users():
 async def get_available_pdfs_endpoint():
     pdfs = await asyncio.to_thread(get_available_pdfs)
     return {"pdfs": pdfs}
+
+# =====================================================================================
