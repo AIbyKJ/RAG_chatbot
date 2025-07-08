@@ -3,6 +3,34 @@ import os
 
 BASE_URL = "http://127.0.0.1:8000"
 
+def upload_folder():
+    folder_path = input("Enter the folder path containing PDFs to upload: ").strip()
+    if not os.path.isdir(folder_path):
+        print("Invalid folder path.")
+        return
+    pdf_files = [
+        os.path.join(folder_path, f)
+        for f in os.listdir(folder_path)
+        if f.lower().endswith(".pdf") and os.path.isfile(os.path.join(folder_path, f))
+    ]
+    if not pdf_files:
+        print("No PDF files found in the folder.")
+        return
+    files = [
+        ("files", (os.path.basename(path), open(path, "rb"), "application/pdf"))
+        for path in pdf_files
+    ]
+    try:
+        res = requests.post(f"{BASE_URL}/pdf/upload", files=files)
+        for _, file_tuple in files:
+            file_tuple[1].close()
+        if res.status_code == 200:
+            print("Uploaded:", res.json().get("uploaded", []))
+        else:
+            print("Error:", res.json().get("error", "Failed to upload PDFs."))
+    except Exception as e:
+        print("Error uploading PDFs:", str(e))
+
 
 def upload_pdfs():
     pdf_paths = input("Enter PDF file paths to upload (comma separated): ").split(",")
@@ -84,24 +112,27 @@ def ingest_pdf_by_filename():
 
 def show_menu():
     print("\n=== PDF Data Management ===")
-    print("1. Upload PDF(s)")
-    print("2. Remove all PDFs")
-    print("3. Remove PDF by filename")
-    print("4. Ingest all PDFs")
-    print("5. Ingest PDF by filename")
-    print("6. Exit")
-    choice = input("\nEnter your choice (1-6): ").strip()
+    print("1. Upload all PDFs in a folder")
+    print("2. Upload PDF(s)")
+    print("3. Remove all PDFs")
+    print("4. Remove PDF by filename")
+    print("5. Ingest all PDFs")
+    print("6. Ingest PDF by filename")
+    print("7. Exit")
+    choice = input("\nEnter your choice (1-7): ").strip()
     if choice == "1":
-        upload_pdfs()
+        upload_folder()
     elif choice == "2":
-        remove_all_pdfs()
+        upload_pdfs()
     elif choice == "3":
-        remove_pdf_by_filename()
+        remove_all_pdfs()
     elif choice == "4":
-        ingest_all_pdfs()
+        remove_pdf_by_filename()
     elif choice == "5":
-        ingest_pdf_by_filename()
+        ingest_all_pdfs()
     elif choice == "6":
+        ingest_pdf_by_filename()
+    elif choice == "7":
         print("Exiting...")
         return False
     else:
