@@ -10,7 +10,10 @@ print("Loading environment variables...")
 load_dotenv(".env")
 
 embedding = OpenAIEmbeddings()
-DATA_DIR = "data"
+
+PERSIST_DIR = os.getenv("PERSIST_DIR", "")
+DATA_DIR = os.path.join(PERSIST_DIR, "data")
+# DATA_DIR = "data"
 
 
 def get_available_pdfs():
@@ -28,14 +31,22 @@ def ingest_all_pdfs(clear_pdf: bool = False):
     all_docs = []
     for file in os.listdir(DATA_DIR):
         if file.lower().endswith(".pdf"):
-            loader = PyPDFLoader(os.path.join(DATA_DIR, file))
-            docs = loader.load()
-            all_docs.extend(docs)
+            try:
+                loader = PyPDFLoader(os.path.join(DATA_DIR, file))
+                docs = loader.load()
+                all_docs.extend(docs)
+            except Exception as e:
+                print(f"Error processing {file}: {e}")
+                continue
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-    chunks = splitter.split_documents(all_docs)
-    success = insert_new_chunks(chunks)
-    print(f"✅ Saved {len(chunks)} PDF chunks.")
-    return {"ingested_files": [f for f in os.listdir(DATA_DIR) if f.lower().endswith('.pdf')], "chunks": len(chunks), "success": success}
+    try:
+        chunks = splitter.split_documents(all_docs)
+        success = insert_new_chunks(chunks)
+        print(f"✅ Saved {len(chunks)} PDF chunks.")
+        return {"ingested_files": [f for f in os.listdir(DATA_DIR) if f.lower().endswith('.pdf')], "chunks": len(chunks), "success": success}
+    except Exception as e:
+        print(f"Error during chunking or insertion: {e}")
+        return {"error": str(e)}
 
 def ingest_one_pdf(filename: str):
     """Ingest a single PDF file by filename in the data/data directory."""

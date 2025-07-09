@@ -13,9 +13,9 @@ splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)
 
 CHAT_HISTORY_LIMIT = 10
 
-CHROMA_PERSIST_DIR = os.getenv("CHROMA_PERSIST_DIR", "chroma")
-CHROMA_MEMORY_DIR = os.path.join(CHROMA_PERSIST_DIR, "chroma_memory")
-CHROMA_PDF_DIR = os.path.join(CHROMA_PERSIST_DIR, "chroma_pdf")
+PERSIST_DIR = os.getenv("PERSIST_DIR", "chroma")
+CHROMA_MEMORY_DIR = os.path.join(PERSIST_DIR, "chroma_memory")
+CHROMA_PDF_DIR = os.path.join(PERSIST_DIR, "chroma_pdf")
 
 
 def insert_new_chunks(chunks):
