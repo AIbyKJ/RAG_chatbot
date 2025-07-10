@@ -13,7 +13,7 @@ splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)
 
 CHAT_HISTORY_LIMIT = 10
 
-PERSIST_DIR = os.getenv("PERSIST_DIR", "chroma")
+PERSIST_DIR = os.getenv("PERSIST_DIR", ".\chroma")
 CHROMA_MEMORY_DIR = os.path.join(PERSIST_DIR, "chroma_memory")
 CHROMA_PDF_DIR = os.path.join(PERSIST_DIR, "chroma_pdf")
 
@@ -100,16 +100,14 @@ def get_all_history(user_id):
     return [doc for ts, doc in docs]
 
 def clear_all_memory():
-    """Delete all user memory (removes chroma_memory directory and recreates it)."""
-    import shutil
-    print("Deleting:", CHROMA_MEMORY_DIR)
-    if os.path.exists(CHROMA_MEMORY_DIR):
-        try:
-            shutil.rmtree(CHROMA_MEMORY_DIR)
-            print("Deleted successfully.")
-        except Exception as e:
-            print("Failed to delete:", e)
-    os.makedirs(CHROMA_MEMORY_DIR, exist_ok=True)
+    collections = Chroma(persist_directory=CHROMA_MEMORY_DIR, embedding_function=None)._client.list_collections()
+    for col in collections:
+        db = Chroma(
+            collection_name=col.name,
+            embedding_function=embedding,
+            persist_directory=CHROMA_MEMORY_DIR
+        )
+        db.delete_collection()
 
 def clear_memory_by_user(user_id):
     """Delete memory for a specific user using the Chroma API (recommended)."""
@@ -122,16 +120,14 @@ def clear_memory_by_user(user_id):
 
 
 def clear_all_pdf():
-    """Delete all PDF data using Chroma API (removes all collections and files in chroma_pdf)."""
-    import shutil
-    print("Deleting:", CHROMA_PDF_DIR)
-    if os.path.exists(CHROMA_PDF_DIR):
-        try:
-            shutil.rmtree(CHROMA_PDF_DIR)
-            print("Deleted successfully.")
-        except Exception as e:
-            print("Failed to delete:", e)
-    os.makedirs(CHROMA_PDF_DIR, exist_ok=True)
+    collections = Chroma(persist_directory=CHROMA_PDF_DIR, embedding_function=None)._client.list_collections()
+    for col in collections:
+        db = Chroma(
+            collection_name=col.name,
+            embedding_function=embedding,
+            persist_directory=CHROMA_PDF_DIR
+        )
+        db.delete_collection()
 
 
 def clear_pdf_by_source(source_name):
