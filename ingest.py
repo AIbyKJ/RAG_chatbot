@@ -15,13 +15,16 @@ PERSIST_DIR = os.getenv("PERSIST_DIR", "")
 DATA_DIR = os.path.join(PERSIST_DIR, "data")
 # DATA_DIR = "data"
 
-
 def get_available_pdfs():
+    os.makedirs(DATA_DIR, exist_ok=True)
+    
     pdfs = [f for f in os.listdir(DATA_DIR) if f.lower().endswith('.pdf')]
     print("Available PDFs:", pdfs)
     return pdfs
 
 def ingest_all_pdfs(clear_pdf: bool = False):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    
     """Ingest all PDF files in the data/data directory."""
     if clear_pdf:
         clear_all_pdf()
@@ -41,6 +44,9 @@ def ingest_all_pdfs(clear_pdf: bool = False):
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     try:
         chunks = splitter.split_documents(all_docs)
+        if not chunks:
+            print("⚠️ No chunks to ingest. Skipping insertion.")
+            return {"ingested_files": [f for f in os.listdir(DATA_DIR) if f.lower().endswith('.pdf')], "chunks": 0, "success": False, "warning": "No chunks to ingest."}
         success = insert_new_chunks(chunks)
         print(f"✅ Saved {len(chunks)} PDF chunks.")
         return {"ingested_files": [f for f in os.listdir(DATA_DIR) if f.lower().endswith('.pdf')], "chunks": len(chunks), "success": success}
@@ -49,6 +55,8 @@ def ingest_all_pdfs(clear_pdf: bool = False):
         return {"error": str(e)}
 
 def ingest_one_pdf(filename: str):
+    os.makedirs(DATA_DIR, exist_ok=True)
+    
     """Ingest a single PDF file by filename in the data/data directory."""
     file_path = os.path.join(DATA_DIR, filename)
     if not os.path.isfile(file_path) or not filename.lower().endswith(".pdf"):
@@ -58,6 +66,9 @@ def ingest_one_pdf(filename: str):
     docs = loader.load()
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     chunks = splitter.split_documents(docs)
+    if not chunks:
+        print(f"⚠️ No chunks to ingest for {filename}. Skipping insertion.")
+        return {"ingested_file": filename, "chunks": 0, "success": False, "warning": "No chunks to ingest."}
     success = insert_new_chunks(chunks)
     print(f"✅ Saved {len(chunks)} PDF chunks from {filename}.")
     return {"ingested_file": filename, "chunks": len(chunks), "success": success}
