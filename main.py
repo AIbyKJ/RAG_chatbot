@@ -137,7 +137,7 @@ async def upload_pdf(files: List[UploadFile] = File(...), credentials: HTTPBasic
         with open(file_path, "wb") as f:
             f.write(await file.read())
         saved_files.append(file.filename)
-    return {"✅ Uploaded": saved_files}
+    return {"uploaded": saved_files}
 
 # 2. Ingest all PDFs in data/
 @app.post("/pdf/ingest")
