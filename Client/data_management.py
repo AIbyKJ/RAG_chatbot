@@ -1,5 +1,6 @@
-import requests
 import os
+import requests
+import getpass
 from requests.auth import HTTPBasicAuth
 
 class PDFDataManager:
@@ -9,159 +10,160 @@ class PDFDataManager:
         self.base_url = base_url
         self.auth = HTTPBasicAuth(username, password)
 
-    def upload_folder(self):
-        folder_path = input("Enter the folder path containing PDFs to upload: ").strip()
-        if not os.path.isdir(folder_path):
-            print("Invalid folder path.")
-            return
-        pdf_files = [
-            os.path.join(folder_path, f)
-            for f in os.listdir(folder_path)
-            if f.lower().endswith(".pdf") and os.path.isfile(os.path.join(folder_path, f))
-        ]
-        if not pdf_files:
-            print("No PDF files found in the folder.")
-            return
-        files = [
-            ("files", (os.path.basename(path), open(path, "rb"), "application/pdf"))
-            for path in pdf_files
-        ]
-        try:
-            res = requests.post(f"{self.base_url}/pdf/upload", files=files, auth=self.auth)
-            for _, file_tuple in files:
-                file_tuple[1].close()
-            if res.status_code == 200:
-                print("Uploaded:", res.json().get("uploaded", []))
-            else:
-                print("Error:", res.json().get("error", "Failed to upload PDFs."))
-        except Exception as e:
-            print("Error uploading PDFs:", str(e))
-
-    def upload_pdfs(self):
+    def upload_pdf_for_user(self):
+        userid = input("Enter user ID to associate PDF with: ").strip()
         pdf_paths = input("Enter PDF file paths to upload (comma separated): ").split(",")
         pdf_paths = [p.strip() for p in pdf_paths if p.strip()]
         files = [("files", (os.path.basename(path), open(path, "rb"), "application/pdf")) for path in pdf_paths if os.path.isfile(path)]
         if not files:
             print("No valid PDF files provided.")
             return
-        res = requests.post(f"{self.base_url}/pdf/upload", files=files, auth=self.auth)
-        for _, file_tuple in files:
-            file_tuple[1].close()
-        if res.status_code == 200:
-            print("Uploaded:", res.json().get("uploaded", []))
-        else:
-            print("Error:", res.json().get("error", "Failed to upload PDFs."))
+        try:
+            res = requests.post(f"{self.base_url}/admin/pdf/upload", params={"userid": userid, "is_global": 0}, files=files, auth=self.auth)
+            for _, file_tuple in files:
+                file_tuple[1].close()
+            result = res.json()
+            if "uploaded" in result:
+                print(f"✅ Uploaded {len(result['uploaded'])} files: {result['uploaded']}")
+            else:
+                print(result)
+        except Exception as e:
+            print(f"Error: {e}")
 
-    def remove_all_pdfs(self):
-        res = requests.delete(f"{self.base_url}/pdf", auth=self.auth)
-        if res.status_code == 200:
-            print("Deleted:", res.json().get("deleted", []))
-        else:
-            print("Error:", res.json().get("error", "Failed to delete all PDFs."))
+    def upload_pdf_global(self):
+        pdf_paths = input("Enter PDF file paths to upload (comma separated): ").split(",")
+        pdf_paths = [p.strip() for p in pdf_paths if p.strip()]
+        files = [("files", (os.path.basename(path), open(path, "rb"), "application/pdf")) for path in pdf_paths if os.path.isfile(path)]
+        if not files:
+            print("No valid PDF files provided.")
+            return
+        try:
+            res = requests.post(f"{self.base_url}/admin/pdf/upload", params={"is_global": 1}, files=files, auth=self.auth)
+            for _, file_tuple in files:
+                file_tuple[1].close()
+            result = res.json()
+            if "uploaded" in result:
+                print(f"✅ Uploaded {len(result['uploaded'])} files: {result['uploaded']}")
+            else:
+                print(result)
+        except Exception as e:
+            print(f"Error: {e}")
 
-    def remove_pdf_by_filename(self):
-        res = requests.get(f"{self.base_url}/pdf", auth=self.auth)
-        if res.status_code == 200:
+    def list_all_pdfs_with_users(self):
+        try:
+            res = requests.get(f"{self.base_url}/admin/pdf/list", auth=self.auth)
             pdfs = res.json().get("pdfs", [])
             if pdfs:
-                print("Available PDFs:")
+                print("PDFs with user associations:")
                 for i, pdf in enumerate(pdfs, 1):
-                    print(f"{i}. {pdf}")
+                    print(f"{i}. {pdf['filename']} (users: {pdf['users']}, is_global: {pdf['is_global']})")
             else:
                 print("No PDFs found.")
-        else:
-            print("Error fetching available PDFs.")
-        filename = input("Enter PDF filename to delete: ").strip()
-        if not filename:
-            print("Filename cannot be empty.")
-            return
+        except Exception as e:
+            print(f"Error: {e}")
+
+    def remove_pdf_from_data_by_filename(self):
+        filename = input("Enter PDF filename to remove from data: ").strip()
         res = requests.delete(f"{self.base_url}/pdf/{filename}", auth=self.auth)
-        if res.status_code == 200:
-            print("Deleted:", res.json().get("deleted", filename))
-        else:
-            print("Error:", res.json().get("error", f"Failed to delete {filename}."))
+        print(res.json())
 
-    def ingest_all_pdfs(self):
-        res = requests.post(f"{self.base_url}/pdf/ingest", auth=self.auth)
-        if res.status_code == 200:
-            print("Ingested:", res.json())
+    def remove_pdfs_from_data_by_userid(self):
+        userid = input("Enter user ID to remove all their PDFs from data: ").strip()
+        res = requests.delete(f"{self.base_url}/pdf/user/{userid}", auth=self.auth)
+        result = res.json()
+        if "message" in result:
+            print(f"✅ {result['message']}")
+            if "deleted_files" in result and result["deleted_files"]:
+                print(f"   Files deleted: {result['deleted_files']}")
+            if "deleted_from_db" in result and result["deleted_from_db"]:
+                print(f"   Database records deleted: {result['deleted_from_db']}")
         else:
-            print("Error:", res.json().get("error", "Failed to ingest all PDFs."))
+            print(result)
 
-    def ingest_pdf_by_filename(self):
-        res = requests.get(f"{self.base_url}/pdf", auth=self.auth)
-        if res.status_code == 200:
-            pdfs = res.json().get("pdfs", [])
-            if pdfs:
-                print("Available PDFs:")
-                for i, pdf in enumerate(pdfs, 1):
-                    print(f"{i}. {pdf}")
+    def remove_all_pdfs_from_data(self):
+        res = requests.delete(f"{self.base_url}/pdf", auth=self.auth)
+        result = res.json()
+        if "message" in result:
+            print(f"✅ {result['message']}")
+            if "deleted_files" in result and result["deleted_files"]:
+                print(f"   Files deleted: {result['deleted_files']}")
+            if "deleted_from_db" in result and result["deleted_from_db"]:
+                print(f"   Database records deleted: {result['deleted_from_db']}")
+        else:
+            print(result)
+
+    def ingest_pdfs_for_user(self):
+        userid = input("Enter user ID to ingest PDFs for: ").strip()
+        res = requests.post(f"{self.base_url}/pdf/ingest/user/{userid}", auth=self.auth)
+        result = res.json()
+        if "success" in result:
+            if result["success"]:
+                print(f"✅ Ingested {result.get('chunks', 0)} chunks from {len(result.get('ingested_files', []))} files for user {userid}")
             else:
-                print("No PDFs found.")
+                print(f"⚠️ {result.get('warning', 'Ingestion failed')}")
         else:
-            print("Error fetching available PDFs.")
+            print(f"❌ Error: {result.get('error', 'Unknown error')}")
+
+    def ingest_pdf_for_user(self):
+        userid = input("Enter user ID: ").strip()
         filename = input("Enter PDF filename to ingest: ").strip()
-        if not filename:
-            print("Filename cannot be empty.")
-            return
-        res = requests.post(f"{self.base_url}/pdf/ingest/{filename}", auth=self.auth)
-        if res.status_code == 200:
-            print("Ingested:", res.json())
-        else:
-            print("Error:", res.json().get("error", f"Failed to ingest {filename}."))
-
-    def list_available_pdfs(self):
-        res = requests.get(f"{self.base_url}/pdf", auth=self.auth)
-        if res.status_code == 200:
-            pdfs = res.json().get("pdfs", [])
-            if pdfs:
-                print("Available PDFs in data folder:")
-                for i, pdf in enumerate(pdfs, 1):
-                    print(f"{i}. {pdf}")
+        res = requests.post(f"{self.base_url}/pdf/ingest/{filename}/user/{userid}", auth=self.auth)
+        result = res.json()
+        if "success" in result:
+            if result["success"]:
+                print(f"✅ Ingested {result.get('chunks', 0)} chunks from {result.get('ingested_file', filename)} for user {userid}")
             else:
-                print("No PDFs found in data folder.")
+                print(f"⚠️ {result.get('warning', 'Ingestion failed')}")
         else:
-            print("Error fetching PDFs.")
+            print(f"❌ Error: {result.get('error', 'Unknown error')}")
 
-def show_menu(manager):
-    print("\n=== PDF Data Management ===")
-    print("    1. Upload all PDFs in a folder")
-    print("    2. Upload PDF(s)")
-    print("    3. Remove all PDFs")
-    print("    4. Remove PDF by filename")
-    print("    5. Ingest all PDFs")
-    print("    6. Ingest PDF by filename")
-    print("    7. List available PDFs in data folder")
-    print("    8. Exit")
-    choice = input("\nEnter your choice (1-8): ").strip()
-    if choice == "1":
-        manager.upload_folder()
-    elif choice == "2":
-        manager.upload_pdfs()
-    elif choice == "3":
-        manager.remove_all_pdfs()
-    elif choice == "4":
-        manager.remove_pdf_by_filename()
-    elif choice == "5":
-        manager.ingest_all_pdfs()
-    elif choice == "6":
-        manager.ingest_pdf_by_filename()
-    elif choice == "7":
-        manager.list_available_pdfs()
-    elif choice == "8":
-        print("Exiting...")
-        return False
-    else:
-        print("Invalid choice. Please try again.")
-    return True
+    def show_menu(self):
+        print("\n=== Admin PDF Data Management ===")
+        print("    1. Upload PDF for user")
+        print("    2. Upload PDF for everyone (global)")
+        print("    3. Remove PDF from data by filename")
+        print("    4. Remove all PDFs from data by userid")
+        print("    5. Remove all PDFs from data (global)")
+        print("    6. List all PDFs with users")
+        print("    7. Ingest all PDFs for specific user")
+        print("    8. Ingest specific PDF for user")
+        print("    9. Exit")
+        choice = input("\nEnter your choice (1-9): ").strip()
+        if choice == "1":
+            self.upload_pdf_for_user()
+        elif choice == "2":
+            self.upload_pdf_global()
+        elif choice == "3":
+            self.remove_pdf_from_data_by_filename()
+        elif choice == "4":
+            self.remove_pdfs_from_data_by_userid()
+        elif choice == "5":
+            self.remove_all_pdfs_from_data()
+        elif choice == "6":
+            self.list_all_pdfs_with_users()
+        elif choice == "7":
+            self.ingest_pdfs_for_user()
+        elif choice == "8":
+            self.ingest_pdf_for_user()
+        elif choice == "9":
+            print("Exiting...")
+            return False
+        else:
+            print("Invalid choice. Please try again.")
+        return True
 
 if __name__ == "__main__":
-    # base_url = "http://127.0.0.1:8000"
-    base_url = "http://40.82.161.202:8000"
+    base_url = os.getenv("BASE_URL", "http://40.82.161.202:8000")
+    admin_user = os.getenv("ADMIN_USER")
+    admin_password = os.getenv("ADMIN_PASSWORD")
 
-    username = input("Enter username: ").strip()
-    password = input("Enter password: ").strip()
-    manager = PDFDataManager(username, password, base_url)
+    if not admin_user or not admin_password:
+        print("Admin credentials not found in .env file.")
+        admin_user = input("Enter admin username: ").strip()
+        admin_password = getpass.getpass("Enter admin password: ")
+
+    # Assume DataManager is the class defined in this file
+    manager = PDFDataManager(admin_user, admin_password, base_url)
     while True:
-        if not show_menu(manager):
+        if not manager.show_menu():
             break
