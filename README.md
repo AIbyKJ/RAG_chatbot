@@ -1,6 +1,6 @@
 # RAG Chatbot: Azure Deployment & Local Testing Guide
 
-# RAG Chatbot
+# Help for RAG Chatbot
 
 A simple Retrieval-Augmented Generation (RAG) chatbot using FastAPI, LangChain, and ChromaDB.
 
