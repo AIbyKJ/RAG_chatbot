@@ -239,9 +239,15 @@ async def ingest_all_pdfs_endpoint(credentials: HTTPBasicCredentials = Depends(v
     result = await asyncio.to_thread(ingest_all_pdfs)
     return result
 
+def user_exists(userid: str) -> bool:
+    users = get_all_users()
+    return any(u[0] == userid for u in users)
+
 # 2b. Ingest all PDFs accessible to a specific user
 @app.post("/pdf/ingest/user/{userid}")
 async def ingest_pdfs_for_user(userid: str, credentials: HTTPBasicCredentials = Depends(verify_password)):
+    if not user_exists(userid):
+        raise HTTPException(status_code=404, detail=f"User {userid} does not exist.")
     result = await asyncio.to_thread(ingest_all_pdfs, user_id=userid)
     return result
 
@@ -254,6 +260,8 @@ async def ingest_pdf(filename: str, credentials: HTTPBasicCredentials = Depends(
 # 3b. Ingest one file for a specific user
 @app.post("/pdf/ingest/{filename}/user/{userid}")
 async def ingest_pdf_for_user(filename: str, userid: str, credentials: HTTPBasicCredentials = Depends(verify_password)):
+    if not user_exists(userid):
+        raise HTTPException(status_code=404, detail=f"User {userid} does not exist.")
     result = await asyncio.to_thread(ingest_one_pdf, filename, userid)
     return result
 
@@ -297,6 +305,8 @@ async def delete_all_pdfs(credentials: HTTPBasicCredentials = Depends(verify_pas
 
 @app.delete("/pdf/user/{userid}")
 async def delete_pdfs_by_userid(userid: str, credentials: HTTPBasicCredentials = Depends(verify_password)):
+    if not user_exists(userid):
+        raise HTTPException(status_code=404, detail=f"User {userid} does not exist.")
     pdfs = get_all_pdfs_with_users()
     deleted_files = []
     deleted_from_db = []
@@ -443,6 +453,8 @@ async def user_auth(req: UserRequest):
 # User: Upload PDF (user-specific)
 @app.post("/user/pdf/upload")
 async def user_upload_pdf(userid: str, files: List[UploadFile] = File(...)):
+    if not user_exists(userid):
+        raise HTTPException(status_code=404, detail=f"User {userid} does not exist.")
     os.makedirs(DATA_DIR, exist_ok=True)
     uploaded = []
     
@@ -463,6 +475,8 @@ async def user_upload_pdf(userid: str, files: List[UploadFile] = File(...)):
 async def admin_upload_pdf(userid: str = None, is_global: int = 0, files: List[UploadFile] = File(...), credentials: HTTPBasicCredentials = Depends(security)):
     if not is_env_admin(credentials):
         raise HTTPException(status_code=403, detail="Not authorized")
+    if userid and not user_exists(userid):
+        raise HTTPException(status_code=404, detail=f"User {userid} does not exist.")
     os.makedirs(DATA_DIR, exist_ok=True)
     uploaded = []
     

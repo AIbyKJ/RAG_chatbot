@@ -5,6 +5,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 # from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
 from vectordb import clear_all_pdf, insert_new_chunks
+from userdb import get_all_users
 
 print("Loading environment variables...")
 load_dotenv(".env")
@@ -15,6 +16,10 @@ PERSIST_DIR = os.getenv("PERSIST_DIR", "")
 DATA_DIR = os.path.join(PERSIST_DIR, "data")
 # DATA_DIR = "data"
 
+def user_exists(userid: str) -> bool:
+    users = get_all_users()
+    return any(u[0] == userid for u in users)
+
 def get_available_pdfs():
     os.makedirs(DATA_DIR, exist_ok=True)
     
@@ -24,6 +29,9 @@ def get_available_pdfs():
 
 def ingest_all_pdfs(clear_pdf: bool = False, user_id: str = None):
     os.makedirs(DATA_DIR, exist_ok=True)
+    if user_id and not user_exists(user_id):
+        print(f"User {user_id} does not exist. Skipping ingestion.")
+        return {"ingested_files": [], "chunks": 0, "success": False, "warning": f"User {user_id} does not exist."}
     
     """Ingest all PDF files in the data/data directory."""
     if clear_pdf:
