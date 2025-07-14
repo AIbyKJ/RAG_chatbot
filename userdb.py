@@ -4,7 +4,9 @@ import os
 
 # DB_PATH = os.path.join(os.path.dirname(__file__), 'user_data.db')
 
-PERSIST_DIR = os.getenv("PERSIST_DIR", ".\sqlite")
+PERSIST_DIR = os.getenv("PERSIST_DIR", ".\\sqlite")
+# Ensure the directory exists
+os.makedirs(PERSIST_DIR, exist_ok=True)
 DB_PATH = os.path.join(PERSIST_DIR, "user_data.db")
 
 def get_db_connection():
