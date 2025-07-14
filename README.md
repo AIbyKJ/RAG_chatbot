@@ -1,213 +1,240 @@
-# RAG Chatbot: Azure Deployment & Local Testing Guide
+# RAG Chatbot with User Management
 
-# Help for RAG Chatbot(version2.0)
+A Retrieval-Augmented Generation (RAG) chatbot system with user authentication, PDF management, and vector database integration using FastAPI, LangChain, and ChromaDB.
 
-A simple Retrieval-Augmented Generation (RAG) chatbot using FastAPI, LangChain, and ChromaDB.
+## Features
 
-## 1. Local Machine Usage
+- **User Management**: Admin and regular user authentication
+- **PDF Management**: Upload, ingest, and delete PDFs per user
+- **Vector Database**: ChromaDB integration with metadata preservation
+- **Chat Interface**: Interactive chat client with authentication
+- **Azure Deployment**: Docker-based deployment on Azure VM
 
-1. **Clone the repository**
+## Quick Start
+
+### Prerequisites
+
+- Python 3.8+
+- OpenAI API key
+- SQLite (included)
+- ChromaDB (included)
+
+### Local Setup
+
+1. **Clone and install**
    ```sh
    git clone https://github.com/kittysoftpaw0510/RAG_chatbot
-   cd rag_chatbot
-   ```
-2. **Install requirements**
-   ```sh
+   cd RAG_chatbot
    pip install -r requirements.txt
    ```
-3. **Set Environment of Project**
+
+2. **Environment setup**
    ```sh
    mkdir data
+   # Copy your PDF files into 'data' directory
    ```
-   Copy your pdf files into 'data' directory.
-4. **Create .env file**
+
+3. **Create .env file**
    ```
-   Make new .env file or copy and paste .env.example.
-   And type like below.
-   OPENAI_API_KEY= sk-proj-xxx
+   OPENAI_API_KEY=sk-proj-xxx
+   ADMIN_USERNAME=admin
+   ADMIN_PASSWORD=your_admin_password
    ```
-5. **Run data ingestion**
-   ```sh
-   python ingest.py (--clear-pdf)
-   ```
-6. **Start the FastAPI server**
+
+4. **Start the server**
    ```sh
    uvicorn main:app --host 0.0.0.0 --port 8000
    ```
-7. **Test with the chat client**
+
+5. **Use the chat client**
    ```sh
-   python chat_client.py
+   python Client/chat_client.py
    ```
 
----
+## User Management
 
-## 2. Deploy on Azure VM (Ubuntu)
+### Authentication
 
-1. **Install required Programs**
-- **Azure CLI:**  
-  [Install instructions (Windows, Mac, Linux)](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli)
-  - **After install, restart your terminal!**
-- **scp/ssh:**  
-  - On Windows, use [Git Bash](https://gitforwindows.org/), [WSL](https://docs.microsoft.com/en-us/windows/wsl/), or [PuTTY](https://www.putty.org/).
-  - On Mac/Linux, these are pre-installed.
+- **Admin Users**: Authenticated using environment variables
+- **Regular Users**: Stored in SQLite database
+- **Session Management**: Credentials required for each operation
 
----
+### User Operations
 
-2. **Clone the Repository**
+- **Admin Functions**:
+  - View all users
+  - Reset user passwords
+  - Manage all PDFs
+  - Clear vector database
+
+- **Regular User Functions**:
+  - Upload PDFs
+  - Ingest PDFs manually
+  - Chat with their documents
+  - Delete their own PDFs
+
+## PDF Management
+
+### Upload and Ingestion
+
+1. **Upload PDFs**: Files are stored in user-specific directories
+2. **Manual Ingestion**: Process PDFs to create vector embeddings
+3. **Metadata Preservation**: User information stored with embeddings
+
+### File Operations
+
+- Upload PDFs to user directory
+- Ingest PDFs to vector database
+- Delete PDFs (files + database records + embeddings)
+- Clear all vector embeddings
+
+## API Endpoints
+
+### Authentication
+- `POST /login` - User authentication
+- `POST /admin/login` - Admin authentication
+
+### User Management
+- `GET /users` - List all users (admin only)
+- `POST /users` - Create new user
+- `PUT /users/{user_id}/password` - Reset user password (admin only)
+
+### PDF Management
+- `POST /upload/{user_id}` - Upload PDF for user
+- `POST /ingest/{user_id}` - Ingest PDFs for user
+- `DELETE /pdfs/{user_id}` - Delete all PDFs for user
+- `DELETE /pdfs/{user_id}/{filename}` - Delete specific PDF
+
+### Chat
+- `POST /chat` - Chat with RAG system
+
+## Azure Deployment
+
+### Prerequisites
+- Azure CLI
+- Docker
+- SSH access
+
+### Deployment Steps
+
+1. **Azure CLI setup**
+   ```sh
+   az login
+   az group create --name rag-chatbot-rg --location eastus
+   ```
+
+2. **Create VM**
+   ```sh
+   az vm create --resource-group rag-chatbot-rg --name rag-vm \
+     --image UbuntuLTS --admin-username azureuser \
+     --generate-ssh-keys --size Standard_DS2_v2
+   ```
+
+3. **Configure VM**
+   ```sh
+   az vm open-port --port 8000 --resource-group rag-chatbot-rg --name rag-vm
+   ```
+
+4. **Deploy with Docker**
+   ```sh
+   docker build -t ragbot .
+   docker run -d -p 8000:8000 --name rag_container ragbot
+   ```
+
+### Testing Azure Deployment
+```sh
+python Client/test_multi_chat.py
+```
+
+## Project Structure
+
+```
+RAG_chatbot/
+├── Client/                    # Chat clients and tools
+│   ├── chat_client.py        # Main chat interface
+│   ├── data_management.py    # PDF management tools
+│   ├── memory_management.py  # Memory and vector operations
+│   ├── user_tools.py         # User management utilities
+│   ├── admin_tools.py        # Admin-specific operations
+│   ├── user_management.py    # User CRUD operations
+│   └── test_multi_chat.py    # Azure deployment testing
+├── data/                     # PDF storage directory
+├── chroma/                   # Vector database storage
+├── Demo/                     # Demo videos and guides
+├── main.py                   # FastAPI application
+├── userdb.py                 # User database operations
+├── ingest.py                 # PDF ingestion logic
+├── vectordb.py               # Vector database operations
+├── llm.py                    # Language model integration
+├── user_data.db              # SQLite user database
+├── requirements.txt          # Python dependencies
+└── Dockerfile                # Docker configuration
+```
+
+## Configuration
+
+### Environment Variables
+- `OPENAI_API_KEY`: Your OpenAI API key
+- `ADMIN_USERNAME`: Admin username (default: admin)
+- `ADMIN_PASSWORD`: Admin password
+
+### Database
+- **SQLite**: User management and PDF metadata
+- **ChromaDB**: Vector embeddings storage
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Authentication Errors**
+   - Verify .env file exists with correct credentials
+   - Check user exists in SQLite database
+
+2. **PDF Upload Issues**
+   - Ensure data directory exists
+   - Check file permissions
+
+3. **Vector Database Issues**
+   - Clear chroma directory if corrupted
+   - Re-ingest PDFs after clearing
+
+4. **Azure Deployment**
+   - Verify port 8000 is open
+   - Check Docker container is running
+   - Ensure environment variables are set
+
+### Useful Commands
 
 ```sh
-git clone https://github.com/kittysoftpaw0510/RAG_chatbot
-cd rag_chatbot
+# Clear vector database
+python Client/memory_management.py --clear-vectors
+
+# List all users
+python Client/user_management.py --list-users
+
+# Delete user PDFs
+python Client/data_management.py --delete-user-pdfs USER_ID
+
+# Admin operations
+python Client/admin_tools.py --reset-password USER_ID
+
+# User operations
+python Client/user_tools.py --create-user USERNAME PASSWORD
 ```
+
+## Development
+
+### Adding New Features
+1. Update API endpoints in `main.py`
+2. Add corresponding client functions
+3. Update database schema if needed
+4. Test with multiple users
+
+### Testing
+- Use `test_multi_chat.py` for Azure deployment testing
+- Test user isolation and permissions
+- Verify PDF operations work correctly
 
 ---
 
-3. **Prepare Local Data and Environment**
-
-```sh
-mkdir data
-# Copy your PDF files into the 'data' directory
-```
-
-Create a `.env` file (do NOT commit this to git!):
-```
-OPENAI_API_KEY=sk-proj-xxx
-```
-
----
-
-4. **Provision and Prepare the Azure VM**
-
-```sh
-az login
-# Follow the browser/device login instructions
-
-az group create --name rag-chatbot-rg --location eastus
-
-az vm create --resource-group rag-chatbot-rg --name rag-vm --image UbuntuLTS --admin-username azureuser --generate-ssh-keys --size Standard_DS2_v2 --output json
-
-az disk create --resource-group rag-chatbot-rg --name rag-disk --size-gb 20 --sku Premium_LRS
-az vm disk attach --resource-group rag-chatbot-rg --vm-name rag-vm --name rag-disk
-
-az vm open-port --port 8000 --resource-group rag-chatbot-rg --name rag-vm
-```
-
----
-
-5. **Copy Project Files to the VM**
-
-**Get your VM's public IP:**
-```sh
-az vm show -d -g rag-chatbot-rg -n rag-vm --query publicIps -o tsv
-```
-Suppose it returns `20.30.40.50`.
-
-**Copy files (from your local machine):**
-```sh
-cd ..
-# On Windows, use Git Bash or WSL for scp
-scp -r -i ./rag_chatbot azureuser@20.30.40.50:/home/azureuser/rag_chatbot
-```
-> **Troubleshooting:**  
-> - If you get a "permission denied" error, make sure you're using the same SSH key as during VM creation.
-> - If `scp` is not found, use Git Bash or WSL.
-
----
-
-6. **Connect to the VM**
-
-```sh
-ssh azureuser@20.30.40.50
-```
-- **If prompted for a password:**  
-  - You should NOT need one if you used `--generate-ssh-keys`.  
-  - If you do, check your SSH key setup.
-
----
-
-7. **Prepare the VM Environment**
-
-```sh
-sudo apt-get update
-sudo apt-get install -y docker.io python3 python3-pip
-# sudo mkdir -p /mnt/azuredata
-# sudo chown azureuser:azureuser /mnt/azuredata
-cd /home/azureuser/rag_chatbot
-```
----
-8. **Mount External Disk**
-```sh
-# Create a new partition (n), write (w)
-sudo fdisk /dev/sdc
-
-# Format the new partition
-sudo mkfs.ext4 /dev/sdc1
-
-# Create the mount point
-sudo mkdir -p /mnt/azuredata
-
-# Mount the disk
-sudo mount /dev/sdc1 /mnt/azuredata
-```
-
----
-
-9. **Build and Run the Docker Container**
-
-```sh
-docker build -t ragbot .
-docker run -d -p 8000:8000 -v /mnt/azuredata:/mnt/azuredata \
-  -e CHROMA_PERSIST_DIR=/mnt/azuredata \
-  --name rag_container ragbot
-docker ps
-```
-> **Troubleshooting:**  
-> - If you get a "permission denied" error, try `sudo docker ...` or add your user to the `docker` group.
-
----
-
-10. **Test the App from Your Local Machine**
-
-**Use the provided script:**
-```sh
-python chat_client_of_Azure.py
-```
-- This script will automatically fetch your VM's public IP and connect to the chatbot.
-- **Make sure you have the Azure CLI installed and are logged in locally.**
-
----
-
-## **Troubleshooting & Tips**
-
-- **SSH/`scp` issues:**  
-  - Use the same user (`azureuser`) and SSH key as during VM creation.
-  - On Windows, use Git Bash or WSL for `scp` and `ssh`.
-
-- **Docker issues:**  
-  - Use `sudo` if you get permission errors.
-  - Make sure Docker is running: `sudo systemctl start docker`
-
-- **API Key issues:**  
-  - Double-check your `.env` file and never commit it to git.
-
-- **Firewall/Port issues:**  
-  - Ensure port 8000 is open in Azure and not blocked by your local firewall.
-
-- **Python version:**  
-  - Use `python3` if `python` points to Python 2.x.
-
----
-
-## **Summary Table**
-
-| Step                | Common Issues & Fixes                                 |
-|---------------------|------------------------------------------------------|
-| Azure CLI           | Restart terminal after install                        |
-| SSH/scp             | Use correct user/key, use Git Bash/WSL on Windows    |
-| Docker              | Use `sudo` if needed, ensure Docker is running       |
-| .env                | Must exist, never commit to git                      |
-| chat_client_of_Azure.py | Needs Azure CLI locally, VM must be running      |
-
----
-
-Enjoy chatting with your RAG-powered bot! 
+For detailed deployment instructions and troubleshooting, see the original documentation sections below. 
