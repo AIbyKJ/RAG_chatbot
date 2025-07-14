@@ -2,7 +2,10 @@ import sqlite3
 from typing import Optional, List, Tuple
 import os
 
-DB_PATH = os.path.join(os.path.dirname(__file__), 'user_data.db')
+# DB_PATH = os.path.join(os.path.dirname(__file__), 'user_data.db')
+
+PERSIST_DIR = os.getenv("PERSIST_DIR", ".\sqlite")
+DB_PATH = os.path.join(PERSIST_DIR, "user_data.db")
 
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
