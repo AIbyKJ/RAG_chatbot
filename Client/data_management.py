@@ -117,6 +117,51 @@ class PDFDataManager:
         else:
             print(f"❌ Error: {result.get('error', 'Unknown error')}")
 
+    def upload_all_pdfs_from_folder_for_user(self):
+        folder = input("Enter folder path containing PDFs: ").strip()
+        userid = input("Enter user ID to associate PDFs with: ").strip()
+        if not os.path.isdir(folder):
+            print("Invalid folder path.")
+            return
+        pdf_paths = [os.path.join(folder, f) for f in os.listdir(folder) if f.lower().endswith('.pdf')]
+        if not pdf_paths:
+            print("No PDF files found in the folder.")
+            return
+        files = [("files", (os.path.basename(path), open(path, "rb"), "application/pdf")) for path in pdf_paths]
+        try:
+            res = requests.post(f"{self.base_url}/admin/pdf/upload", params={"userid": userid, "is_global": 0}, files=files, auth=self.auth)
+            for _, file_tuple in files:
+                file_tuple[1].close()
+            result = res.json()
+            if "uploaded" in result:
+                print(f"✅ Uploaded {len(result['uploaded'])} files: {result['uploaded']}")
+            else:
+                print(result)
+        except Exception as e:
+            print(f"Error: {e}")
+
+    def upload_all_pdfs_from_folder_global(self):
+        folder = input("Enter folder path containing PDFs: ").strip()
+        if not os.path.isdir(folder):
+            print("Invalid folder path.")
+            return
+        pdf_paths = [os.path.join(folder, f) for f in os.listdir(folder) if f.lower().endswith('.pdf')]
+        if not pdf_paths:
+            print("No PDF files found in the folder.")
+            return
+        files = [("files", (os.path.basename(path), open(path, "rb"), "application/pdf")) for path in pdf_paths]
+        try:
+            res = requests.post(f"{self.base_url}/admin/pdf/upload", params={"is_global": 1}, files=files, auth=self.auth)
+            for _, file_tuple in files:
+                file_tuple[1].close()
+            result = res.json()
+            if "uploaded" in result:
+                print(f"✅ Uploaded {len(result['uploaded'])} files: {result['uploaded']}")
+            else:
+                print(result)
+        except Exception as e:
+            print(f"Error: {e}")
+
     def show_menu(self):
         print("\n=== Admin PDF Data Management ===")
         print("    1. Upload PDF for user")
@@ -127,8 +172,10 @@ class PDFDataManager:
         print("    6. List all PDFs with users")
         print("    7. Ingest all PDFs for specific user")
         print("    8. Ingest specific PDF for user")
-        print("    9. Exit")
-        choice = input("\nEnter your choice (1-9): ").strip()
+        print("    9. Upload ALL PDFs from folder for user")
+        print("   10. Upload ALL PDFs from folder (global)")
+        print("   11. Exit")
+        choice = input("\nEnter your choice (1-11): ").strip()
         if choice == "1":
             self.upload_pdf_for_user()
         elif choice == "2":
@@ -146,6 +193,10 @@ class PDFDataManager:
         elif choice == "8":
             self.ingest_pdf_for_user()
         elif choice == "9":
+            self.upload_all_pdfs_from_folder_for_user()
+        elif choice == "10":
+            self.upload_all_pdfs_from_folder_global()
+        elif choice == "11":
             print("Exiting...")
             return False
         else:

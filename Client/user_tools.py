@@ -27,6 +27,24 @@ class UserToolsManager:
         except Exception as e:
             print(f"Error: {e}")
 
+    def upload_all_pdfs_from_folder(self):
+        folder = input("Enter folder path containing PDFs: ").strip()
+        if not os.path.isdir(folder):
+            print("Invalid folder path.")
+            return
+        pdf_paths = [os.path.join(folder, f) for f in os.listdir(folder) if f.lower().endswith('.pdf')]
+        if not pdf_paths:
+            print("No PDF files found in the folder.")
+            return
+        files = [("files", (os.path.basename(path), open(path, "rb"), "application/pdf")) for path in pdf_paths]
+        try:
+            res = requests.post(f"{BASE_URL}/user/pdf/upload", params={"userid": self.username}, files=files, auth=self.auth)
+            for _, file_tuple in files:
+                file_tuple[1].close()
+            print(res.json())
+        except Exception as e:
+            print(f"Error: {e}")
+
     def list_my_pdfs(self):
         try:
             res = requests.get(f"{BASE_URL}/user/pdf/list/{self.username}", auth=self.auth)
@@ -116,8 +134,9 @@ class UserToolsManager:
             print("    6. Delete all my PDFs from Chroma")
             print("    7. Delete my PDF from data by filename")
             print("    8. Delete all my PDFs from data")
-            print("    9. Exit")
-            choice = input("Select an option (1-9): ").strip()
+            print("    9. Upload ALL PDFs from folder")
+            print("   10. Exit")
+            choice = input("Select an option (1-10): ").strip()
             if choice == "1":
                 self.upload_pdfs()
             elif choice == "2":
@@ -135,6 +154,8 @@ class UserToolsManager:
             elif choice == "8":
                 self.delete_all_my_pdfs_from_data()
             elif choice == "9":
+                self.upload_all_pdfs_from_folder()
+            elif choice == "10":
                 print("Exiting...")
                 break
             else:
