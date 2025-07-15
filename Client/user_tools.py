@@ -19,11 +19,20 @@ class UserToolsManager:
         if not files:
             print("No valid PDF files provided.")
             return
+        is_public = input("Upload to public? (y/n): ").strip().lower() == 'y'
         try:
-            res = requests.post(f"{BASE_URL}/user/pdf/upload", params={"userid": self.username}, files=files, auth=self.auth)
+            if is_public:
+                res = requests.post(f"{BASE_URL}/user/pdf/upload", params={"userid": self.username, "is_global": 1}, files=files, auth=self.auth)
+            else:
+                res = requests.post(f"{BASE_URL}/user/pdf/upload", params={"userid": self.username, "is_global": 0}, files=files, auth=self.auth)
             for _, file_tuple in files:
                 file_tuple[1].close()
-            print(res.json())
+            result = res.json()
+            print(result.get("message", result))
+            if result.get("skipped"):
+                print("Some files were skipped:")
+                for entry in result["skipped"]:
+                    print(f"  {entry['filename']}: {entry['reason']}")
         except Exception as e:
             print(f"Error: {e}")
 
@@ -37,11 +46,20 @@ class UserToolsManager:
             print("No PDF files found in the folder.")
             return
         files = [("files", (os.path.basename(path), open(path, "rb"), "application/pdf")) for path in pdf_paths]
+        is_public = input("Upload to public? (y/n): ").strip().lower() == 'y'
         try:
-            res = requests.post(f"{BASE_URL}/user/pdf/upload", params={"userid": self.username}, files=files, auth=self.auth)
+            if is_public:
+                res = requests.post(f"{BASE_URL}/user/pdf/upload", params={"userid": self.username, "is_global": 1}, files=files, auth=self.auth)
+            else:
+                res = requests.post(f"{BASE_URL}/user/pdf/upload", params={"userid": self.username, "is_global": 0}, files=files, auth=self.auth)
             for _, file_tuple in files:
                 file_tuple[1].close()
-            print(res.json())
+            result = res.json()
+            print(result.get("message", result))
+            if result.get("skipped"):
+                print("Some files were skipped:")
+                for entry in result["skipped"]:
+                    print(f"  {entry['filename']}: {entry['reason']}")
         except Exception as e:
             print(f"Error: {e}")
 
@@ -50,9 +68,9 @@ class UserToolsManager:
             res = requests.get(f"{BASE_URL}/user/pdf/list/{self.username}", auth=self.auth)
             pdfs = res.json().get("pdfs", [])
             if pdfs:
-                print("Your uploaded PDFs:")
+                print("Your uploaded PDFs (relative paths):")
                 for i, pdf in enumerate(pdfs, 1):
-                    print(f"{i}. {pdf['filename']}")
+                    print(f"{i}. {pdf}")
             else:
                 print("No PDFs found.")
         except Exception as e:
@@ -75,7 +93,8 @@ class UserToolsManager:
             except Exception:
                 print("Invalid selection.")
                 return
-            res = requests.post(f"{BASE_URL}/pdf/ingest/{filename}", auth=self.auth)
+            # Use the user ingestion endpoint
+            res = requests.post(f"{BASE_URL}/user/pdf/ingest/{filename}", auth=self.auth)
             print(res.json())
         except Exception as e:
             print(f"Error: {e}")
@@ -115,7 +134,7 @@ class UserToolsManager:
         print(res.json())
 
     def delete_my_pdf_from_data_by_filename(self):
-        filename = input("Enter PDF filename to remove from data: ").strip()
+        filename = input("Enter PDF relative path to remove from data (e.g., u1/LHahn.pdf or public/LHahn.pdf): ").strip()
         res = requests.delete(f"{BASE_URL}/pdf/{filename}", auth=self.auth)
         print(res.json())
 

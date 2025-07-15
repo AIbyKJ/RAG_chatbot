@@ -243,6 +243,9 @@ def user_exists(userid: str) -> bool:
     users = get_all_users()
     return any(u[0] == userid for u in users)
 
+# Update ingestion logic to use relative paths
+from ingest import ingest_all_pdfs, ingest_one_pdf
+
 # 2b. Ingest all PDFs accessible to a specific user
 @app.post("/pdf/ingest/user/{userid}")
 async def ingest_pdfs_for_user(userid: str, credentials: HTTPBasicCredentials = Depends(verify_admin_password)):
@@ -265,7 +268,8 @@ async def ingest_pdf_for_user(filename: str, userid: str, credentials: HTTPBasic
     result = await asyncio.to_thread(ingest_one_pdf, filename, userid)
     return result
 
-# 4. Delete all PDF files in data
+# Update deletion logic everywhere to use relative paths and correct folders
+# (Assume all file operations now use rel_path from DB, and join with DATA_DIR)
 @app.delete("/pdf")
 async def delete_all_pdfs(credentials: HTTPBasicCredentials = Depends(verify_admin_password)):
     deleted_files = []
@@ -519,10 +523,22 @@ async def get_all_users_endpoint(credentials: HTTPBasicCredentials = Depends(sec
     users = await asyncio.to_thread(get_all_users)
     return {"users": [{"userid": userid, "is_admin": bool(is_admin)} for userid, is_admin in users]}
 
-# 2. Get available PDFs in data folder
+# Update get_available_pdfs to list PDFs for a user or public
+
+def get_available_pdfs_for_user(userid=None):
+    pdfs = []
+    if userid:
+        user_folder = os.path.join(DATA_DIR, userid)
+        if os.path.isdir(user_folder):
+            pdfs += [os.path.join(userid, f) for f in os.listdir(user_folder) if f.lower().endswith('.pdf')]
+    public_folder = os.path.join(DATA_DIR, "public")
+    if os.path.isdir(public_folder):
+        pdfs += [os.path.join("public", f) for f in os.listdir(public_folder) if f.lower().endswith('.pdf')]
+    return pdfs
+
 @app.get("/pdf")
 async def get_available_pdfs_endpoint(credentials: HTTPBasicCredentials = Depends(verify_admin_password)):
-    pdfs = await asyncio.to_thread(get_available_pdfs)
+    pdfs = get_available_pdfs_for_user()
     return {"pdfs": pdfs}
 
 # =====================================================================================
@@ -542,6 +558,16 @@ def is_env_admin(credentials: HTTPBasicCredentials):
     correct_username = os.environ.get("ADMIN_USERNAME", "admin")
     correct_password = os.environ.get("ADMIN_PASSWORD", "123123")
     return credentials.username == correct_username and credentials.password == correct_password
+
+# Helper to get the correct folder for a PDF
+
+def get_pdf_folder(userid=None, is_global=0):
+    if is_global:
+        return os.path.join(DATA_DIR, "public")
+    elif userid:
+        return os.path.join(DATA_DIR, userid)
+    else:
+        return DATA_DIR
 
 # Admin: Add user
 @app.post("/admin/user/add")
@@ -573,23 +599,35 @@ async def user_auth(req: UserRequest):
 
 # User: Upload PDF (user-specific)
 @app.post("/user/pdf/upload")
-async def user_upload_pdf(userid: str, files: List[UploadFile] = File(...)):
+async def user_upload_pdf(userid: str, is_global: int = 0, files: List[UploadFile] = File(...)):
     if not user_exists(userid):
-        raise HTTPException(status_code=404, detail=f"User {userid} does not exist.")
-    os.makedirs(DATA_DIR, exist_ok=True)
+        return {"error": f"User {userid} does not exist."}
     uploaded = []
-    
+    skipped = []
     for file in files:
-        if not file.filename.lower().endswith(".pdf"):
+        filename = file.filename
+        if is_global:
+            folder = os.path.join(DATA_DIR, "public")
+            rel_path = os.path.join("public", filename)
+        else:
+            folder = os.path.join(DATA_DIR, userid)
+            rel_path = os.path.join(userid, filename)
+        os.makedirs(folder, exist_ok=True)
+        file_path = os.path.join(folder, filename)
+        if os.path.exists(file_path):
+            skipped.append({"filename": rel_path, "reason": "File already exists. Skipped to prevent overwrite."})
             continue
-        file_path = os.path.join(DATA_DIR, file.filename)
         with open(file_path, "wb") as f:
             f.write(await file.read())
-        pdf_id = add_pdf(file.filename, uploaded_by=userid, is_global=0)
-        associate_pdf_with_user(userid, pdf_id)
-        uploaded.append(file.filename)
-    
-    return {"uploaded": uploaded}
+        from userdb import add_pdf, associate_pdf_with_user
+        pdf_id = add_pdf(rel_path, userid, is_global)
+        if not is_global:
+            associate_pdf_with_user(userid, pdf_id)
+        uploaded.append(rel_path)
+    message = f"Uploaded {len(uploaded)} files."
+    if skipped:
+        message += f" Skipped {len(skipped)} files due to existing files."
+    return {"uploaded": uploaded, "skipped": skipped, "message": message}
 
 # Admin: Upload PDF for user or global
 @app.post("/admin/pdf/upload")
@@ -598,20 +636,20 @@ async def admin_upload_pdf(userid: str = None, is_global: int = 0, files: List[U
         raise HTTPException(status_code=403, detail="Not authorized")
     if userid and not user_exists(userid):
         raise HTTPException(status_code=404, detail=f"User {userid} does not exist.")
-    os.makedirs(DATA_DIR, exist_ok=True)
+    folder = get_pdf_folder(userid=userid, is_global=is_global)
+    os.makedirs(folder, exist_ok=True)
     uploaded = []
-    
     for file in files:
         if not file.filename.lower().endswith(".pdf"):
             continue
-        file_path = os.path.join(DATA_DIR, file.filename)
+        file_path = os.path.join(folder, file.filename)
         with open(file_path, "wb") as f:
             f.write(await file.read())
-        pdf_id = add_pdf(file.filename, uploaded_by=userid, is_global=is_global)
+        rel_path = os.path.relpath(file_path, DATA_DIR)
+        pdf_id = add_pdf(rel_path, uploaded_by=userid, is_global=is_global)
         if userid:
             associate_pdf_with_user(userid, pdf_id)
-        uploaded.append(file.filename)
-    
+        uploaded.append(rel_path)
     return {"uploaded": uploaded}
 
 # Admin: List all PDFs with user associations
@@ -628,11 +666,8 @@ async def admin_list_pdfs(credentials: HTTPBasicCredentials = Depends(security))
 # User: List their available PDFs
 @app.get("/user/pdf/list/{userid}")
 async def user_list_pdfs(userid: str):
-    pdfs = get_user_pdfs(userid)
-    return {"pdfs": [
-        {"pdf_id": pdf_id, "filename": filename}
-        for pdf_id, filename in pdfs
-    ]}
+    pdfs = get_available_pdfs_for_user(userid)
+    return {"pdfs": pdfs}
 
 @app.post("/user/change_password")
 async def user_change_password(req: ChangePasswordRequest = Body(...)):
@@ -653,3 +688,65 @@ async def admin_reset_user_password(req: AdminResetPasswordRequest, credentials:
         return {"message": f"Password for user {req.userid} reset successfully."}
     else:
         return {"error": "Failed to reset password (user may not exist)."}
+
+# --- USER-ACCESSIBLE INGESTION ENDPOINTS ---
+@app.post("/user/pdf/ingest")
+async def user_ingest_all_pdfs(credentials: HTTPBasicCredentials = Depends(verify_user_password)):
+    user = credentials.username
+    is_admin_user = user == os.environ.get("ADMIN_USERNAME", "admin")
+    if is_admin_user:
+        return await ingest_all_pdfs_endpoint(credentials)
+    from userdb import get_user_pdfs
+    user_pdfs = get_user_pdfs(user)
+    # Only allow personal PDFs (not public)
+    own_filenames = set(f for _, f in user_pdfs if not f.startswith("public/"))
+    if not own_filenames:
+        return {"ingested_files": [], "chunks": 0, "success": False, "warning": "No personal PDFs to ingest."}
+    ingested_files = []
+    total_chunks = 0
+    for filename in own_filenames:
+        result = await asyncio.to_thread(ingest_one_pdf, filename, user)
+        if result.get("success"):
+            ingested_files.append(filename)
+            total_chunks += result.get("chunks", 0)
+    return {"ingested_files": ingested_files, "chunks": total_chunks, "success": True}
+
+@app.post("/user/pdf/ingest/{filename}")
+async def user_ingest_one_pdf(filename: str, credentials: HTTPBasicCredentials = Depends(verify_user_password)):
+    user = credentials.username
+    is_admin_user = user == os.environ.get("ADMIN_USERNAME", "admin")
+    if is_admin_user:
+        return await ingest_pdf(filename, credentials)
+    from userdb import get_user_pdfs
+    user_pdfs = get_user_pdfs(user)
+    own_filenames = set(f for _, f in user_pdfs if not f.startswith("public/"))
+    if filename not in own_filenames:
+        raise HTTPException(status_code=403, detail="You can only ingest your own PDFs, not public PDFs.")
+    result = await asyncio.to_thread(ingest_one_pdf, filename, user)
+    return result
+
+@app.delete("/pdf/{filename}")
+async def delete_my_pdf_from_data_by_filename(filename: str, credentials: HTTPBasicCredentials = Depends(verify_user_password)):
+    user = credentials.username
+    is_admin_user = user == os.environ.get("ADMIN_USERNAME", "admin")
+    if is_admin_user:
+        # Admin can delete any file
+        return await delete_pdf_by_userid_and_filename(user, filename, credentials)
+    from userdb import get_user_pdfs
+    user_pdfs = get_user_pdfs(user)
+    own_filenames = set(f for _, f in user_pdfs if not f.startswith("public/"))
+    if filename not in own_filenames:
+        raise HTTPException(status_code=403, detail="You can only delete your own PDFs, not public PDFs.")
+    # Remove file from user's folder and DB
+    file_path = os.path.join(DATA_DIR, filename)
+    if os.path.isfile(file_path):
+        os.remove(file_path)
+    # Remove from DB
+    from userdb import get_db_connection
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute('DELETE FROM user_pdfs WHERE userid = ? AND pdf_id = (SELECT pdf_id FROM pdfs WHERE filename = ?)', (user, filename))
+    c.execute('DELETE FROM pdfs WHERE filename = ?', (filename,))
+    conn.commit()
+    conn.close()
+    return {"deleted": filename, "message": f"Deleted {filename} from your data."}

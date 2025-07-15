@@ -32,14 +32,11 @@ def ingest_all_pdfs(clear_pdf: bool = False, user_id: str = None):
     if user_id and not user_exists(user_id):
         print(f"User {user_id} does not exist. Skipping ingestion.")
         return {"ingested_files": [], "chunks": 0, "success": False, "warning": f"User {user_id} does not exist."}
-    
-    """Ingest all PDF files in the data/data directory."""
     if clear_pdf:
         clear_all_pdf()
         print("Previous PDF data cleared.")
     else:
         print("Keeping previous PDF data.")
-    
     # Get user's accessible PDFs if user_id is provided
     if user_id:
         from userdb import get_user_pdfs
@@ -49,30 +46,64 @@ def ingest_all_pdfs(clear_pdf: bool = False, user_id: str = None):
     else:
         allowed_filenames = None
         print("Ingesting all PDFs (admin mode)")
-    
     all_docs = []
     ingested_files = []
-    
-    for file in os.listdir(DATA_DIR):
-        if file.lower().endswith(".pdf"):
-            # Check if user has access to this PDF
-            if user_id and file not in allowed_filenames:
-                print(f"Skipping {file} - not accessible to user {user_id}")
+    # Ingest PDFs from correct folders using relative paths
+    if user_id:
+        # Ingest user's own PDFs
+        user_folder = os.path.join(DATA_DIR, user_id)
+        if os.path.isdir(user_folder):
+            for file in os.listdir(user_folder):
+                if file.lower().endswith(".pdf"):
+                    rel_path = os.path.join(user_id, file)
+                    if allowed_filenames and rel_path not in allowed_filenames:
+                        print(f"Skipping {rel_path} - not accessible to user {user_id}")
+                        continue
+                    try:
+                        loader = PyPDFLoader(os.path.join(DATA_DIR, rel_path))
+                        docs = loader.load()
+                        all_docs.extend(docs)
+                        ingested_files.append(rel_path)
+                    except Exception as e:
+                        print(f"Error processing {rel_path}: {e}")
+                        continue
+        # Ingest public PDFs
+        public_folder = os.path.join(DATA_DIR, "public")
+        if os.path.isdir(public_folder):
+            for file in os.listdir(public_folder):
+                if file.lower().endswith(".pdf"):
+                    rel_path = os.path.join("public", file)
+                    if allowed_filenames and rel_path not in allowed_filenames:
+                        print(f"Skipping {rel_path} - not accessible to user {user_id}")
+                        continue
+                    try:
+                        loader = PyPDFLoader(os.path.join(DATA_DIR, rel_path))
+                        docs = loader.load()
+                        all_docs.extend(docs)
+                        ingested_files.append(rel_path)
+                    except Exception as e:
+                        print(f"Error processing {rel_path}: {e}")
+                        continue
+    else:
+        # Ingest all PDFs in all user and public folders
+        for folder in os.listdir(DATA_DIR):
+            folder_path = os.path.join(DATA_DIR, folder)
+            if not os.path.isdir(folder_path):
                 continue
-                
-            try:
-                loader = PyPDFLoader(os.path.join(DATA_DIR, file))
-                docs = loader.load()
-                all_docs.extend(docs)
-                ingested_files.append(file)
-            except Exception as e:
-                print(f"Error processing {file}: {e}")
-                continue
-    
+            for file in os.listdir(folder_path):
+                if file.lower().endswith(".pdf"):
+                    rel_path = os.path.join(folder, file)
+                    try:
+                        loader = PyPDFLoader(os.path.join(DATA_DIR, rel_path))
+                        docs = loader.load()
+                        all_docs.extend(docs)
+                        ingested_files.append(rel_path)
+                    except Exception as e:
+                        print(f"Error processing {rel_path}: {e}")
+                        continue
     if not all_docs:
         print("⚠️ No documents to ingest.")
         return {"ingested_files": ingested_files, "chunks": 0, "success": False, "warning": "No documents to ingest."}
-    
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
     try:
         chunks = splitter.split_documents(all_docs)
@@ -80,11 +111,10 @@ def ingest_all_pdfs(clear_pdf: bool = False, user_id: str = None):
             print("⚠️ No chunks to ingest. Skipping insertion.")
             return {"ingested_files": ingested_files, "chunks": 0, "success": False, "warning": "No chunks to ingest."}
         success = insert_new_chunks(chunks)
-        print(f"✅ Saved {len(chunks)} PDF chunks from {len(ingested_files)} files.")
         return {"ingested_files": ingested_files, "chunks": len(chunks), "success": success}
     except Exception as e:
-        print(f"Error during chunking or insertion: {e}")
-        return {"error": str(e)}
+        print(f"Error splitting/ingesting documents: {e}")
+        return {"ingested_files": ingested_files, "chunks": 0, "success": False, "error": str(e)}
 
 def ingest_one_pdf(filename: str, user_id: str = None):
     os.makedirs(DATA_DIR, exist_ok=True)

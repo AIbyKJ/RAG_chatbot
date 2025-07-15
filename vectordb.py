@@ -6,6 +6,7 @@ import time
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
+from langchain_core.documents import Document
 from userdb import get_user_pdfs
 
 load_dotenv(".env")
@@ -21,14 +22,21 @@ CHROMA_PDF_DIR = os.path.join(PERSIST_DIR, "chroma_pdf")
 
 def insert_new_chunks(chunks):
     try:
-        # Create a new Chroma instance or get existing one
+        # Ensure all chunks are Document objects
+        doc_chunks = []
+        for c in chunks:
+            if isinstance(c, str):
+                doc_chunks.append(Document(page_content=c))
+            elif hasattr(c, 'page_content'):
+                doc_chunks.append(c)
+            else:
+                # fallback: treat as string
+                doc_chunks.append(Document(page_content=str(c)))
         pdf_db = Chroma(
             persist_directory=CHROMA_PDF_DIR,
             embedding_function=embedding
         )
-        
-        # Add documents with proper metadata preservation
-        pdf_db.add_documents(chunks)
+        pdf_db.add_documents(doc_chunks)
         return True
     except Exception as e:
         print(f"Error inserting new chunks: {e}")

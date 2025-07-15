@@ -63,7 +63,7 @@ class PDFDataManager:
             print(f"Error: {e}")
 
     def remove_pdf_from_data_by_filename(self):
-        filename = input("Enter PDF filename to remove from data: ").strip()
+        filename = input("Enter PDF relative path to remove from data (e.g., u1/LHahn.pdf or public/LHahn.pdf): ").strip()
         res = requests.delete(f"{self.base_url}/pdf/{filename}", auth=self.auth)
         print(res.json())
 
@@ -93,12 +93,15 @@ class PDFDataManager:
             print(result)
 
     def ingest_pdfs_for_user(self):
+        if self.username != os.environ.get("ADMIN_USERNAME", "admin"):
+            print("This function is admin-only. Use the user ingestion menu to ingest your own PDFs.")
+            return
         userid = input("Enter user ID to ingest PDFs for: ").strip()
         res = requests.post(f"{self.base_url}/pdf/ingest/user/{userid}", auth=self.auth)
         result = res.json()
         if "success" in result:
             if result["success"]:
-                print(f"✅ Ingested {result.get('chunks', 0)} chunks from {len(result.get('ingested_files', []))} files for user {userid}")
+                print(f"✅ Ingested {result.get('chunks', 0)} chunks from {len(result.get('ingested_files', []) )} files for user {userid}")
             else:
                 print(f"⚠️ {result.get('warning', 'Ingestion failed')}")
         else:
@@ -107,7 +110,13 @@ class PDFDataManager:
     def ingest_pdf_for_user(self):
         userid = input("Enter user ID: ").strip()
         filename = input("Enter PDF filename to ingest: ").strip()
-        res = requests.post(f"{self.base_url}/pdf/ingest/{filename}/user/{userid}", auth=self.auth)
+        if self.username == os.environ.get("ADMIN_USERNAME", "admin"):
+            res = requests.post(f"{self.base_url}/pdf/ingest/{filename}/user/{userid}", auth=self.auth)
+        else:
+            if userid != self.username:
+                print("You can only ingest your own PDFs.")
+                return
+            res = requests.post(f"{self.base_url}/user/pdf/ingest/{filename}", auth=self.auth)
         result = res.json()
         if "success" in result:
             if result["success"]:
@@ -164,7 +173,7 @@ class PDFDataManager:
 
     def remove_pdf_by_userid_and_filename(self):
         userid = input("Enter user ID: ").strip()
-        filename = input("Enter PDF filename to remove: ").strip()
+        filename = input("Enter PDF relative path to remove (e.g., u1/LHahn.pdf or public/LHahn.pdf): ").strip()
         try:
             res = requests.delete(f"{self.base_url}/admin/pdf/user/{userid}/file/{filename}", auth=self.auth)
             result = res.json()
@@ -173,7 +182,7 @@ class PDFDataManager:
                 if "deleted_files" in result and result["deleted_files"]:
                     print(f"   Files deleted: {result['deleted_files']}")
                 if "deleted_from_db" in result and result["deleted_from_db"]:
-                    print(f"   Database records deleted: {result['deleted_from_db']}")
+                    print(f"   Database records deleted: {result['deleted_from_db']}" )
                 if "files_not_deleted" in result and result["files_not_deleted"]:
                     print(f"   Files not deleted (shared): {result['files_not_deleted']}")
             else:
