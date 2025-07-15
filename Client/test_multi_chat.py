@@ -5,8 +5,8 @@ from datetime import datetime
 import random
 import argparse
 
-# BASE_URL = "http://127.0.0.1:8000"
-BASE_URL = "http://40.82.161.202:8000"
+BASE_URL = "http://127.0.0.1:8000"
+# BASE_URL = "http://40.82.161.202:8000"
 
 n_requests = 100
 test_duration = 120
