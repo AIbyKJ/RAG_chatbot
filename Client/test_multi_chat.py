@@ -4,12 +4,22 @@ import time
 from datetime import datetime
 import random
 import argparse
+import sys
 
 BASE_URL = "http://127.0.0.1:8000"
 # BASE_URL = "http://40.82.161.202:8000"
 
 n_requests = 100
 test_duration = 120
+
+# Define a list of test users (userid, password)
+test_users = [
+    ("testuser1", "testpass1"),
+    ("testuser2", "testpass2"),
+    ("testuser3", "testpass3"),
+    ("testuser4", "testpass4"),
+    ("testuser5", "testpass5"),
+]
 
 question_list = [
     "Who is Elara?",
@@ -25,7 +35,10 @@ def parse_args():
     parser.add_argument("--log-to-prompt", action="store_true", help="Enable logging to console")
     return parser.parse_args()
 
-async def send_chat(index, user_id, delay, log_to_prompt, log_to_file, lock, success_count):
+def get_auth(user_index):
+    return test_users[user_index % len(test_users)]
+
+async def send_chat(index, user_id, user_index, delay, log_to_prompt, log_to_file, lock, success_count):
     chat_api = f"{BASE_URL}/chat"
     history_api = f"{BASE_URL}/chat/history/{user_id}"
     await asyncio.sleep(delay)
@@ -34,7 +47,8 @@ async def send_chat(index, user_id, delay, log_to_prompt, log_to_file, lock, suc
         async with httpx.AsyncClient(timeout=20.0) as ac:
             response = await ac.post(
                 chat_api,
-                json={"user_id": user_id, "message": message}
+                json={"user_id": user_id, "message": message},
+                auth=get_auth(user_index)
             )
             assert response.status_code == 200
             json_data = response.json()
@@ -43,7 +57,7 @@ async def send_chat(index, user_id, delay, log_to_prompt, log_to_file, lock, suc
                 success_count["count"] += 1
             await asyncio.sleep(1)
             now = datetime.now()
-            history_response = await ac.get(history_api)
+            history_response = await ac.get(history_api, auth=get_auth(user_index))
             history = history_response.json().get("history", [])
             log_line = (
                 f"{'*' * 30}\n"
@@ -74,22 +88,23 @@ def main():
     args = parse_args()
     log_to_file = args.log_to_file
     log_to_prompt = args.log_to_prompt
-    users = [f"user_{i % 5}" for i in range(n_requests)]
+    # Rotate through test users for each request
+    users = [test_users[i % len(test_users)][0] for i in range(n_requests)]
     interval = test_duration / n_requests
     success_count = {"count": 0}
     lock = asyncio.Lock()
     response_times = []
 
-    async def timed_send_chat(index, user_id, delay):
+    async def timed_send_chat(index, user_id, user_index, delay):
         t0 = time.time()
-        result = await send_chat(index, user_id, delay, log_to_prompt, log_to_file, lock, success_count)
+        result = await send_chat(index, user_id, user_index, delay, log_to_prompt, log_to_file, lock, success_count)
         t1 = time.time()
         response_times.append(t1 - t0)
         return result
 
     async def run_all():
         tasks = [
-            timed_send_chat(i, users[i], i * interval)
+            timed_send_chat(i, users[i], i, i * interval)
             for i in range(n_requests)
         ]
         results = await asyncio.gather(*tasks)

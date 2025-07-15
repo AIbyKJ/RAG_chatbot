@@ -4,12 +4,8 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 # from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
-<<<<<<< HEAD:utils/ingest.py
-from utils.vectordb import clear_all_pdf, insert_new_chunks
-=======
 from vectordb import clear_all_pdf, insert_new_chunks
 from userdb import get_all_users
->>>>>>> 3578a32f7d0fa3879920ea6a704e04ffd97717f7:ingest.py
 
 print("Loading environment variables...")
 load_dotenv(".env")

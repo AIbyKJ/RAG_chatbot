@@ -42,30 +42,6 @@ def insert_new_chunks(chunks):
         print(f"Error inserting new chunks: {e}")
         return False
 
-<<<<<<< HEAD:utils/vectordb.py
-def retrieve_pdf(user_id, query, k=3):
-    """
-    Retrieve the top-k most similar PDF document chunks for a given query, only for the given user (and public).
-    """
-    db = Chroma(
-        persist_directory=CHROMA_PDF_DIR,
-        embedding_function=embedding
-    )
-    # Try to use metadata filtering if supported (Chroma/LangChain may not support it directly)
-    # So, run similarity_search and filter results by owner
-    results = db.similarity_search(query, k=20)  # get more to filter
-    filtered = []
-    for doc in results:
-        owner = getattr(doc, 'metadata', {}).get('owner', 'public')
-        if owner == user_id or owner == "public":
-            filtered.append(doc)
-        if len(filtered) >= k:
-            break
-    return filtered
-=======
-
->>>>>>> 3578a32f7d0fa3879920ea6a704e04ffd97717f7:vectordb.py
-
 
 def save_user_message(user_id, message):
     persist_dir = CHROMA_MEMORY_DIR
