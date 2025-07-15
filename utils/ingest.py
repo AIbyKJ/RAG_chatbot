@@ -4,7 +4,7 @@ from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 # from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
-from vectordb import clear_all_pdf, insert_new_chunks
+from utils.vectordb import clear_all_pdf, insert_new_chunks
 from userdb import get_all_users
 
 print("Loading environment variables...")

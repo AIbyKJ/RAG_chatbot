@@ -26,5 +26,5 @@ COPY . .
 EXPOSE 8000
 
 # Run ingest.py before starting the FastAPI app (exec form)
-CMD ["sh", "-c", "python ingest.py --clear-pdf && uvicorn main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "python utils/ingest.py --clear-pdf && uvicorn main:app --host 0.0.0.0 --port 8000"]
 # CMD ["sh", "-c", "python ingest.py && uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4"] # If you use GPU

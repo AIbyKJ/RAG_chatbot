@@ -11,7 +11,7 @@ def authenticate():
         user_id = input("User ID: ").strip()
         password = getpass.getpass("Password: ")
         try:
-            res = requests.get(f"{BASE_URL}/auth/check", auth=HTTPBasicAuth(user_id, password))
+            res = requests.get(f"{BASE_URL}/user/auth/check", auth=HTTPBasicAuth(user_id, password))
             if res.status_code == 200 and res.json().get("success"):
                 print("✅ Authentication successful!\n")
                 return user_id, password
@@ -21,7 +21,7 @@ def authenticate():
             print(f"❌ Error connecting to server: {e}\n")
 
 def print_history(user_id, auth):
-    history_api = f"{BASE_URL}/chat/history/{user_id}"
+    history_api = f"{BASE_URL}/user/chat/history/{user_id}"
     try:
         res = requests.get(history_api, auth=auth)
         print("*" * 10)
@@ -37,7 +37,7 @@ def print_history(user_id, auth):
         print(f"Error fetching history: {e}")
 
 def chat():
-    chat_api = f"{BASE_URL}/chat"
+    chat_api = f"{BASE_URL}/user/chat"
 
     # Authenticate user first
     user_id, password = authenticate()

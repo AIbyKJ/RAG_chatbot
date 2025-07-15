@@ -2,7 +2,7 @@ import os
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBasicCredentials
 from pydantic import BaseModel
-from utils.vectordb import get_all_history, save_user_message, retrieve_user_memory, retrieve_pdf
+from utils.vectordb import get_all_history, save_user_message, retrieve_user_memory, retrieve_pdf_for_user
 from utils.llm import LanguageModel
 import asyncio
 from routes.user.user_auth import verify_user_credentials
@@ -18,7 +18,7 @@ class ChatRequest(BaseModel):
 async def chat(req: ChatRequest, credentials: HTTPBasicCredentials = Depends(verify_user_credentials)):
     # TODO: check user credentials match req.user_id
     mem_docs = await asyncio.to_thread(retrieve_user_memory, req.user_id, req.message, 3)
-    pdf_docs = await asyncio.to_thread(retrieve_pdf, req.message, req.user_id, 3)
+    pdf_docs = await asyncio.to_thread(retrieve_pdf_for_user, req.message, req.user_id, 3)
     mem_text = "\n".join([d.page_content for d in mem_docs]) if mem_docs else "No previous conversation found."
     pdf_text = "\n".join([d.page_content for d in pdf_docs]) if pdf_docs else "No relevant documents found."
     await asyncio.to_thread(save_user_message, req.user_id, req.message)
