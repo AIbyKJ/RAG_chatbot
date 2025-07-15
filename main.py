@@ -23,7 +23,7 @@ chatmodel = LanguageModel()
 
 security = HTTPBasic()
 
-def verify_password(credentials: HTTPBasicCredentials = Depends(security)):
+def verify_admin_password(credentials: HTTPBasicCredentials = Depends(security)):
     """Verify admin credentials from environment variables."""
     # Get the admin username and password from environment variable ADMIN_PASSWORD, ADMIN_USERNAME
     correct_username = os.environ.get("ADMIN_USERNAME", "admin")
@@ -122,7 +122,7 @@ async def get_history(user_id: str, credentials: HTTPBasicCredentials = Depends(
 
 # 1. Clear all chat history memory
 @app.delete("/vectordb/memory")
-async def clear_all_memory_endpoint(credentials: HTTPBasicCredentials = Depends(verify_password)):
+async def clear_all_memory_endpoint(credentials: HTTPBasicCredentials = Depends(verify_admin_password)):
     """Clear all memory for all users."""
     try:
         await asyncio.to_thread(clear_all_memory)
@@ -132,7 +132,7 @@ async def clear_all_memory_endpoint(credentials: HTTPBasicCredentials = Depends(
 
 # 2. Clear chat history memory by userid
 @app.delete("/vectordb/memory/{user_id}")
-async def clear_memory(user_id: str, credentials: HTTPBasicCredentials = Depends(verify_password)):
+async def clear_memory(user_id: str, credentials: HTTPBasicCredentials = Depends(verify_admin_password)):
     """Clear all memory for a specific user."""
     try:
         await asyncio.to_thread(clear_memory_by_user, user_id)
@@ -144,7 +144,7 @@ async def clear_memory(user_id: str, credentials: HTTPBasicCredentials = Depends
 
 # 1. Clear all pdf data from vectordb
 @app.delete("/vectordb/pdf")
-async def clear_all_pdf_endpoint(credentials: HTTPBasicCredentials = Depends(verify_password)):
+async def clear_all_pdf_endpoint(credentials: HTTPBasicCredentials = Depends(verify_admin_password)):
     """Clear all PDF data."""
     try:
         await asyncio.to_thread(clear_all_pdf)
@@ -173,7 +173,7 @@ async def clear_pdf_by_source_endpoint(source_name: str, credentials: HTTPBasicC
         return {"error": f"Failed to clear PDF data for source {source_name}: {str(e)}"}
 
 @app.delete("/vectordb/pdf/user/{userid}")
-async def clear_pdf_by_userid(userid: str, credentials: HTTPBasicCredentials = Depends(verify_password)):
+async def clear_pdf_by_userid(userid: str, credentials: HTTPBasicCredentials = Depends(verify_admin_password)):
     # Admin only - Clear vector embeddings for user's PDFs
     pdfs = get_all_pdfs_with_users()
     deleted_from_vectordb = []
@@ -212,7 +212,7 @@ async def clear_pdf_by_user_me(credentials: HTTPBasicCredentials = Depends(secur
 
 # List available PDF sources in vectordb
 @app.get("/vectordb/pdf/sources")
-async def get_pdf_sources_endpoint(credentials: HTTPBasicCredentials = Depends(verify_password)):
+async def get_pdf_sources_endpoint(credentials: HTTPBasicCredentials = Depends(verify_admin_password)):
     sources = await asyncio.to_thread(get_pdf_sources)
     return {"sources": sources}
 
@@ -220,7 +220,7 @@ async def get_pdf_sources_endpoint(credentials: HTTPBasicCredentials = Depends(v
 
 # 1. Upload PDF(s) endpoint
 @app.post("/pdf/upload")
-async def upload_pdf(files: List[UploadFile] = File(...), credentials: HTTPBasicCredentials = Depends(verify_password)):
+async def upload_pdf(files: List[UploadFile] = File(...), credentials: HTTPBasicCredentials = Depends(verify_admin_password)):
     os.makedirs(DATA_DIR, exist_ok=True)
 
     saved_files = []
@@ -235,7 +235,7 @@ async def upload_pdf(files: List[UploadFile] = File(...), credentials: HTTPBasic
 
 # 2. Ingest all PDFs in data/
 @app.post("/pdf/ingest")
-async def ingest_all_pdfs_endpoint(credentials: HTTPBasicCredentials = Depends(verify_password)):
+async def ingest_all_pdfs_endpoint(credentials: HTTPBasicCredentials = Depends(verify_admin_password)):
     result = await asyncio.to_thread(ingest_all_pdfs)
     return result
 
@@ -245,7 +245,7 @@ def user_exists(userid: str) -> bool:
 
 # 2b. Ingest all PDFs accessible to a specific user
 @app.post("/pdf/ingest/user/{userid}")
-async def ingest_pdfs_for_user(userid: str, credentials: HTTPBasicCredentials = Depends(verify_password)):
+async def ingest_pdfs_for_user(userid: str, credentials: HTTPBasicCredentials = Depends(verify_admin_password)):
     if not user_exists(userid):
         raise HTTPException(status_code=404, detail=f"User {userid} does not exist.")
     result = await asyncio.to_thread(ingest_all_pdfs, user_id=userid)
@@ -253,13 +253,13 @@ async def ingest_pdfs_for_user(userid: str, credentials: HTTPBasicCredentials = 
 
 # 3. Ingest one file
 @app.post("/pdf/ingest/{filename}")
-async def ingest_pdf(filename: str, credentials: HTTPBasicCredentials = Depends(verify_password)):
+async def ingest_pdf(filename: str, credentials: HTTPBasicCredentials = Depends(verify_admin_password)):
     result = await asyncio.to_thread(ingest_one_pdf, filename)
     return result
 
 # 3b. Ingest one file for a specific user
 @app.post("/pdf/ingest/{filename}/user/{userid}")
-async def ingest_pdf_for_user(filename: str, userid: str, credentials: HTTPBasicCredentials = Depends(verify_password)):
+async def ingest_pdf_for_user(filename: str, userid: str, credentials: HTTPBasicCredentials = Depends(verify_admin_password)):
     if not user_exists(userid):
         raise HTTPException(status_code=404, detail=f"User {userid} does not exist.")
     result = await asyncio.to_thread(ingest_one_pdf, filename, userid)
@@ -267,7 +267,7 @@ async def ingest_pdf_for_user(filename: str, userid: str, credentials: HTTPBasic
 
 # 4. Delete all PDF files in data
 @app.delete("/pdf")
-async def delete_all_pdfs(credentials: HTTPBasicCredentials = Depends(verify_password)):
+async def delete_all_pdfs(credentials: HTTPBasicCredentials = Depends(verify_admin_password)):
     deleted_files = []
     deleted_from_db = []
     
@@ -304,20 +304,27 @@ async def delete_all_pdfs(credentials: HTTPBasicCredentials = Depends(verify_pas
     }
 
 @app.delete("/pdf/user/{userid}")
-async def delete_pdfs_by_userid(userid: str, credentials: HTTPBasicCredentials = Depends(verify_password)):
+async def delete_pdfs_by_userid(userid: str, credentials: HTTPBasicCredentials = Depends(verify_admin_password)):
     if not user_exists(userid):
         raise HTTPException(status_code=404, detail=f"User {userid} does not exist.")
     pdfs = get_all_pdfs_with_users()
     deleted_files = []
     deleted_from_db = []
+    files_not_deleted = []
     
     for pdf_id, filename, users, is_global in pdfs:
         if users == [userid] and not is_global:
-            # Delete file from filesystem
+            # Check if this file is used by other users
+            other_users_using_file = [u for u in users if u != userid]
+            
+            # Delete file from filesystem ONLY if no other users are using it
             file_path = os.path.join(DATA_DIR, filename)
             if os.path.isfile(file_path) and filename.lower().endswith(".pdf"):
-                os.remove(file_path)
-                deleted_files.append(filename)
+                if not other_users_using_file:
+                    os.remove(file_path)
+                    deleted_files.append(filename)
+                else:
+                    files_not_deleted.append(filename)
             
             # Delete from vector database
             try:
@@ -339,10 +346,15 @@ async def delete_pdfs_by_userid(userid: str, credentials: HTTPBasicCredentials =
             except Exception as e:
                 print(f"Warning: Could not delete PDF from database: {e}")
     
+    message = f"Deleted {len(deleted_files)} files and {len(deleted_from_db)} database records for user {userid}"
+    if files_not_deleted:
+        message += f". Files not deleted (shared with other users): {files_not_deleted}"
+    
     return {
         "deleted_files": deleted_files,
         "deleted_from_db": deleted_from_db,
-        "message": f"Deleted {len(deleted_files)} files and {len(deleted_from_db)} database records for user {userid}"
+        "files_not_deleted": files_not_deleted,
+        "message": message
     }
 
 @app.delete("/pdf/user/me")
@@ -351,14 +363,21 @@ async def delete_pdfs_by_user_me(credentials: HTTPBasicCredentials = Depends(sec
     pdfs = get_all_pdfs_with_users()
     deleted_files = []
     deleted_from_db = []
+    files_not_deleted = []
     
     for pdf_id, filename, users, is_global in pdfs:
         if users == [user] and not is_global:
-            # Delete file from filesystem
+            # Check if this file is used by other users
+            other_users_using_file = [u for u in users if u != user]
+            
+            # Delete file from filesystem ONLY if no other users are using it
             file_path = os.path.join(DATA_DIR, filename)
             if os.path.isfile(file_path) and filename.lower().endswith(".pdf"):
-                os.remove(file_path)
-                deleted_files.append(filename)
+                if not other_users_using_file:
+                    os.remove(file_path)
+                    deleted_files.append(filename)
+                else:
+                    files_not_deleted.append(filename)
             
             # Delete from vector database
             try:
@@ -380,17 +399,22 @@ async def delete_pdfs_by_user_me(credentials: HTTPBasicCredentials = Depends(sec
             except Exception as e:
                 print(f"Warning: Could not delete PDF from database: {e}")
     
+    message = f"Deleted {len(deleted_files)} files and {len(deleted_from_db)} database records for user {user}"
+    if files_not_deleted:
+        message += f". Files not deleted (shared with other users): {files_not_deleted}"
+    
     return {
         "deleted_files": deleted_files,
         "deleted_from_db": deleted_from_db,
-        "message": f"Deleted {len(deleted_files)} files and {len(deleted_from_db)} database records for user {user}"
+        "files_not_deleted": files_not_deleted,
+        "message": message
     }
 
 # =====================================================================================
 
 # 1. Get available user IDs (from vectordb)
 @app.get("/users")
-async def get_available_users(credentials: HTTPBasicCredentials = Depends(verify_password)):
+async def get_available_users(credentials: HTTPBasicCredentials = Depends(verify_admin_password)):
     user_ids = await asyncio.to_thread(get_available_user_ids)
     return {"user_ids": user_ids}
 
@@ -405,11 +429,16 @@ async def get_all_users_endpoint(credentials: HTTPBasicCredentials = Depends(sec
 
 # 2. Get available PDFs in data folder
 @app.get("/pdf")
-async def get_available_pdfs_endpoint(credentials: HTTPBasicCredentials = Depends(verify_password)):
+async def get_available_pdfs_endpoint(credentials: HTTPBasicCredentials = Depends(verify_admin_password)):
     pdfs = await asyncio.to_thread(get_available_pdfs)
     return {"pdfs": pdfs}
 
 # =====================================================================================
+
+@app.get("/admin/auth/check")
+async def admin_auth_check(credentials: HTTPBasicCredentials = Depends(verify_admin_password)):
+    """Admin-only authentication check using environment variables."""
+    return {"success": True, "message": "Admin authentication successful."}
 
 @app.get("/auth/check")
 async def auth_check(credentials: HTTPBasicCredentials = Depends(verify_user_password)):
