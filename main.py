@@ -313,14 +313,37 @@ async def delete_pdfs_by_userid(userid: str, credentials: HTTPBasicCredentials =
     files_not_deleted = []
     
     for pdf_id, filename, users, is_global in pdfs:
-        if users == [userid] and not is_global:
-            # Check if this file is used by other users
-            other_users_using_file = [u for u in users if u != userid]
+        if userid in users and not is_global:
+            # Check if this user is the ONLY user with access to this PDF
+            is_only_user = len(users) == 1 and userid in users
             
-            # Delete file from filesystem ONLY if no other users are using it
+            # First, remove the user association from the database
+            try:
+                conn = get_db_connection()
+                c = conn.cursor()
+                # Delete from user_pdfs association
+                c.execute('DELETE FROM user_pdfs WHERE pdf_id = ? AND userid = ?', (pdf_id, userid))
+                
+                # Check if this PDF is still associated with other users AFTER removing this user
+                c.execute('SELECT COUNT(*) FROM user_pdfs WHERE pdf_id = ?', (pdf_id,))
+                remaining_users = c.fetchone()[0]
+                
+                # If no users left, delete the PDF record entirely
+                if remaining_users == 0:
+                    c.execute('DELETE FROM pdfs WHERE pdf_id = ?', (pdf_id,))
+                    deleted_from_db.append(filename)
+                
+                conn.commit()
+                conn.close()
+            except Exception as e:
+                print(f"Warning: Could not delete PDF from database: {e}")
+                continue
+            
+            # Now check if the file should be deleted from filesystem
+            # Only delete if this user was the ONLY user with access to this PDF
             file_path = os.path.join(DATA_DIR, filename)
             if os.path.isfile(file_path) and filename.lower().endswith(".pdf"):
-                if not other_users_using_file:
+                if is_only_user:
                     os.remove(file_path)
                     deleted_files.append(filename)
                 else:
@@ -331,20 +354,6 @@ async def delete_pdfs_by_userid(userid: str, credentials: HTTPBasicCredentials =
                 await asyncio.to_thread(clear_pdf_by_source, filename)
             except Exception as e:
                 print(f"Warning: Could not clear PDF from vector database: {e}")
-            
-            # Delete from SQLite database
-            try:
-                conn = get_db_connection()
-                c = conn.cursor()
-                # Delete from user_pdfs association
-                c.execute('DELETE FROM user_pdfs WHERE pdf_id = ?', (pdf_id,))
-                # Delete from pdfs table
-                c.execute('DELETE FROM pdfs WHERE pdf_id = ?', (pdf_id,))
-                conn.commit()
-                conn.close()
-                deleted_from_db.append(filename)
-            except Exception as e:
-                print(f"Warning: Could not delete PDF from database: {e}")
     
     message = f"Deleted {len(deleted_files)} files and {len(deleted_from_db)} database records for user {userid}"
     if files_not_deleted:
@@ -366,14 +375,37 @@ async def delete_pdfs_by_user_me(credentials: HTTPBasicCredentials = Depends(sec
     files_not_deleted = []
     
     for pdf_id, filename, users, is_global in pdfs:
-        if users == [user] and not is_global:
-            # Check if this file is used by other users
-            other_users_using_file = [u for u in users if u != user]
+        if user in users and not is_global:
+            # Check if this user is the ONLY user with access to this PDF
+            is_only_user = len(users) == 1 and user in users
             
-            # Delete file from filesystem ONLY if no other users are using it
+            # First, remove the user association from the database
+            try:
+                conn = get_db_connection()
+                c = conn.cursor()
+                # Delete from user_pdfs association
+                c.execute('DELETE FROM user_pdfs WHERE pdf_id = ? AND userid = ?', (pdf_id, user))
+                
+                # Check if this PDF is still associated with other users AFTER removing this user
+                c.execute('SELECT COUNT(*) FROM user_pdfs WHERE pdf_id = ?', (pdf_id,))
+                remaining_users = c.fetchone()[0]
+                
+                # If no users left, delete the PDF record entirely
+                if remaining_users == 0:
+                    c.execute('DELETE FROM pdfs WHERE pdf_id = ?', (pdf_id,))
+                    deleted_from_db.append(filename)
+                
+                conn.commit()
+                conn.close()
+            except Exception as e:
+                print(f"Warning: Could not delete PDF from database: {e}")
+                continue
+            
+            # Now check if the file should be deleted from filesystem
+            # Only delete if this user was the ONLY user with access to this PDF
             file_path = os.path.join(DATA_DIR, filename)
             if os.path.isfile(file_path) and filename.lower().endswith(".pdf"):
-                if not other_users_using_file:
+                if is_only_user:
                     os.remove(file_path)
                     deleted_files.append(filename)
                 else:
@@ -384,20 +416,6 @@ async def delete_pdfs_by_user_me(credentials: HTTPBasicCredentials = Depends(sec
                 await asyncio.to_thread(clear_pdf_by_source, filename)
             except Exception as e:
                 print(f"Warning: Could not clear PDF from vector database: {e}")
-            
-            # Delete from SQLite database
-            try:
-                conn = get_db_connection()
-                c = conn.cursor()
-                # Delete from user_pdfs association
-                c.execute('DELETE FROM user_pdfs WHERE pdf_id = ?', (pdf_id,))
-                # Delete from pdfs table
-                c.execute('DELETE FROM pdfs WHERE pdf_id = ?', (pdf_id,))
-                conn.commit()
-                conn.close()
-                deleted_from_db.append(filename)
-            except Exception as e:
-                print(f"Warning: Could not delete PDF from database: {e}")
     
     message = f"Deleted {len(deleted_files)} files and {len(deleted_from_db)} database records for user {user}"
     if files_not_deleted:
@@ -432,32 +450,17 @@ async def delete_pdf_by_userid_and_filename(userid: str, filename: str, credenti
     
     pdf_id, pdf_filename, users, is_global = target_pdf
     
-    # Check if this file is used by other users
-    other_users_using_file = [u for u in users if u != userid]
+    # Check if this user is the ONLY user with access to this PDF
+    is_only_user = len(users) == 1 and userid in users
     
-    # Delete file from filesystem ONLY if no other users are using it
-    file_path = os.path.join(DATA_DIR, filename)
-    if os.path.isfile(file_path) and filename.lower().endswith(".pdf"):
-        if not other_users_using_file:
-            os.remove(file_path)
-            deleted_files.append(filename)
-        else:
-            files_not_deleted.append(filename)
-    
-    # Delete from vector database
-    try:
-        await asyncio.to_thread(clear_pdf_by_source, filename)
-    except Exception as e:
-        print(f"Warning: Could not clear PDF from vector database: {e}")
-    
-    # Delete from SQLite database - only remove the user association
+    # First, remove the user association from the database
     try:
         conn = get_db_connection()
         c = conn.cursor()
         # Delete only the user_pdfs association for this specific user and PDF
         c.execute('DELETE FROM user_pdfs WHERE pdf_id = ? AND userid = ?', (pdf_id, userid))
         
-        # Check if this PDF is still associated with other users
+        # Check if this PDF is still associated with other users AFTER removing this user
         c.execute('SELECT COUNT(*) FROM user_pdfs WHERE pdf_id = ?', (pdf_id,))
         remaining_users = c.fetchone()[0]
         
@@ -470,6 +473,23 @@ async def delete_pdf_by_userid_and_filename(userid: str, filename: str, credenti
         conn.close()
     except Exception as e:
         print(f"Warning: Could not delete PDF from database: {e}")
+        raise HTTPException(status_code=500, detail=f"Database error: {e}")
+    
+    # Now check if the file should be deleted from filesystem
+    # Only delete if this user was the ONLY user with access to this PDF
+    file_path = os.path.join(DATA_DIR, filename)
+    if os.path.isfile(file_path) and filename.lower().endswith(".pdf"):
+        if is_only_user:
+            os.remove(file_path)
+            deleted_files.append(filename)
+        else:
+            files_not_deleted.append(filename)
+    
+    # Delete from vector database
+    try:
+        await asyncio.to_thread(clear_pdf_by_source, filename)
+    except Exception as e:
+        print(f"Warning: Could not clear PDF from vector database: {e}")
     
     message = f"Removed PDF '{filename}' for user '{userid}'"
     if files_not_deleted:

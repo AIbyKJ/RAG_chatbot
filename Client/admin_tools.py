@@ -49,12 +49,12 @@ def authenticate():
         username = input("Username: ").strip()
         password = getpass.getpass("Password: ")
         try:
-            res = requests.get(f"{BASE_URL}/auth/check", auth=HTTPBasicAuth(username, password))
+            res = requests.get(f"{BASE_URL}/admin/auth/check", auth=HTTPBasicAuth(username, password))
             if res.status_code == 200 and res.json().get("success"):
-                print("✅ Authentication successful!\n")
+                print("✅ Admin authentication successful!\n")
                 return username, password
             else:
-                print("❌ Incorrect username or password. Please try again.\n")
+                print("❌ Incorrect admin username or password. Please try again.\n")
         except Exception as e:
             print(f"❌ Error connecting to server: {e}\n")
 
