@@ -3,9 +3,11 @@ import os
 import uuid
 import time
 
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
+from langchain_core.documents import Document
+from userdb import get_user_pdfs
 
 load_dotenv(".env")
 embedding = OpenAIEmbeddings()
@@ -20,17 +22,27 @@ CHROMA_PDF_DIR = os.path.join(PERSIST_DIR, "chroma_pdf")
 
 def insert_new_chunks(chunks):
     try:
-        pdf_db = Chroma.from_documents(
-            documents=chunks,
-            embedding=embedding,
-            persist_directory=CHROMA_PDF_DIR
+        # Ensure all chunks are Document objects
+        doc_chunks = []
+        for c in chunks:
+            if isinstance(c, str):
+                doc_chunks.append(Document(page_content=c))
+            elif hasattr(c, 'page_content'):
+                doc_chunks.append(c)
+            else:
+                # fallback: treat as string
+                doc_chunks.append(Document(page_content=str(c)))
+        pdf_db = Chroma(
+            persist_directory=CHROMA_PDF_DIR,
+            embedding_function=embedding
         )
-        # pdf_db.persist()
+        pdf_db.add_documents(doc_chunks)
         return True
     except Exception as e:
         print(f"Error inserting new chunks: {e}")
         return False
 
+<<<<<<< HEAD:utils/vectordb.py
 def retrieve_pdf(user_id, query, k=3):
     """
     Retrieve the top-k most similar PDF document chunks for a given query, only for the given user (and public).
@@ -50,6 +62,9 @@ def retrieve_pdf(user_id, query, k=3):
         if len(filtered) >= k:
             break
     return filtered
+=======
+
+>>>>>>> 3578a32f7d0fa3879920ea6a704e04ffd97717f7:vectordb.py
 
 
 def save_user_message(user_id, message):
@@ -82,7 +97,6 @@ def save_user_message(user_id, message):
         c.metadata["timestamp"] = now
     ids = [str(uuid.uuid4()) for _ in chunks]
     db.add_documents(chunks, ids=ids)
-    # db.persist()
 
 def retrieve_user_memory(user_id, query, k=3):
     persist_dir = CHROMA_MEMORY_DIR
@@ -156,7 +170,6 @@ def clear_pdf_by_source(source_name):
     # Find documents with matching source
     ids_to_delete = []
     for i, metadata in enumerate(all_docs["metadatas"]):
-        # print("TEST:", metadata.get("source"))
         source_path = metadata.get("source")
         if source_path and os.path.basename(source_path) == source_name:
             ids_to_delete.append(all_docs["ids"][i])
@@ -184,9 +197,34 @@ def get_pdf_sources():
         embedding_function=embedding
     )
     all_docs = db.get()
-    # print(all_docs)
     sources = set()
     for meta in all_docs["metadatas"]:
         if "source" in meta:
             sources.add(meta["source"])
     return list(sources)
+
+def retrieve_pdf_for_user(query, userid, k=3):
+    """
+    Retrieve the top-k most relevant PDF document chunks for a given query, but only from PDFs the user has access to (own + global).
+    """
+    user_pdfs = get_user_pdfs(userid)
+    allowed_filenames = set(filename for _, filename in user_pdfs)
+    db = Chroma(
+        persist_directory=CHROMA_PDF_DIR,
+        embedding_function=embedding
+    )
+    all_docs = db.get()
+    # Filter docs by allowed filenames
+    filtered_docs = []
+    filtered_metadatas = []
+    for i, meta in enumerate(all_docs["metadatas"]):
+        source = meta.get("source")
+        if source and os.path.basename(source) in allowed_filenames:
+            filtered_docs.append(all_docs["documents"][i])
+            filtered_metadatas.append(meta)
+    if not filtered_docs:
+        return []
+    # Create a temporary Chroma collection for similarity search on filtered docs
+    temp_db = Chroma.from_documents(filtered_docs, embedding=embedding)
+    results = temp_db.similarity_search(query, k=k)
+    return results
