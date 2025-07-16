@@ -131,6 +131,7 @@ dmypy.json
 # Project-specific
 # Vector databases
 chroma/
+sqlite/
 *.sqlite3
 
 # Data files
