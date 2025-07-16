@@ -7,7 +7,6 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings
 from langchain_core.documents import Document
-from userdb import get_user_pdfs
 
 load_dotenv(".env")
 embedding = OpenAIEmbeddings()
@@ -15,40 +14,19 @@ splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=50)
 
 CHAT_HISTORY_LIMIT = 10
 
-PERSIST_DIR = os.getenv("PERSIST_DIR", ".\chroma")
+PERSIST_DIR = os.getenv("PERSIST_DIR", ".\\chroma")
 CHROMA_MEMORY_DIR = os.path.join(PERSIST_DIR, "chroma_memory")
 CHROMA_PDF_DIR = os.path.join(PERSIST_DIR, "chroma_pdf")
 
-
-def insert_new_chunks(chunks):
-    try:
-        # Ensure all chunks are Document objects
-        doc_chunks = []
-        for c in chunks:
-            if isinstance(c, str):
-                doc_chunks.append(Document(page_content=c))
-            elif hasattr(c, 'page_content'):
-                doc_chunks.append(c)
-            else:
-                # fallback: treat as string
-                doc_chunks.append(Document(page_content=str(c)))
-        pdf_db = Chroma(
-            persist_directory=CHROMA_PDF_DIR,
-            embedding_function=embedding
-        )
-        pdf_db.add_documents(doc_chunks)
-        return True
-    except Exception as e:
-        print(f"Error inserting new chunks: {e}")
-        return False
-
+######################################
+# User message history embedding
+######################################
 
 def save_user_message(user_id, message):
-    persist_dir = CHROMA_MEMORY_DIR
     db = Chroma(
         collection_name=f"user_{user_id}",
         embedding_function=embedding,
-        persist_directory=persist_dir
+        persist_directory=CHROMA_MEMORY_DIR
     )
     # Fetch all existing messages
     all_docs = db.get()
@@ -66,29 +44,23 @@ def save_user_message(user_id, message):
         ids_to_delete = [doc[0] for doc in docs_with_time[:num_to_delete]]
         db.delete(ids=ids_to_delete)
     # Prepare new chunk(s) with timestamp
-    chunks = splitter.create_documents([message])
     now = time.time()
-    for c in chunks:
-        c.metadata["user_id"] = user_id
-        c.metadata["timestamp"] = now
-    ids = [str(uuid.uuid4()) for _ in chunks]
-    db.add_documents(chunks, ids=ids)
+    doc = Document(page_content=message, metadata={"user_id": user_id, "timestamp": now})
+    db.add_documents([doc], ids=[str(uuid.uuid4())])
 
 def retrieve_user_memory(user_id, query, k=3):
-    persist_dir = CHROMA_MEMORY_DIR
     db = Chroma(
         collection_name=f"user_{user_id}",
         embedding_function=embedding,
-        persist_directory=persist_dir
+        persist_directory=CHROMA_MEMORY_DIR
     )
     return db.similarity_search(query, k=k)
 
 def get_all_history(user_id):
-    persist_dir = CHROMA_MEMORY_DIR
     db = Chroma(
         collection_name=f"user_{user_id}",
         embedding_function=embedding,
-        persist_directory=persist_dir
+        persist_directory=CHROMA_MEMORY_DIR
     )
     all_docs = db.get()
     docs = []
@@ -99,18 +71,7 @@ def get_all_history(user_id):
     docs.sort(key=lambda x: x[0])  # oldest to newest
     return [doc for ts, doc in docs]
 
-def clear_all_memory():
-    collections = Chroma(persist_directory=CHROMA_MEMORY_DIR, embedding_function=None)._client.list_collections()
-    for col in collections:
-        db = Chroma(
-            collection_name=col.name,
-            embedding_function=embedding,
-            persist_directory=CHROMA_MEMORY_DIR
-        )
-        db.delete_collection()
-
-def clear_memory_by_user(user_id):
-    """Delete memory for a specific user using the Chroma API (recommended)."""
+def clear_history_by_user(user_id):
     db = Chroma(
         collection_name=f"user_{user_id}",
         embedding_function=embedding,
@@ -118,50 +79,36 @@ def clear_memory_by_user(user_id):
     )
     db.delete_collection()
 
-
-def clear_all_pdf():
-    collections = Chroma(persist_directory=CHROMA_PDF_DIR, embedding_function=None)._client.list_collections()
-    for col in collections:
+def clear_history_all():
+    # Remove all user collections in memory dir
+    client = Chroma(persist_directory=CHROMA_MEMORY_DIR, embedding_function=None)._client
+    for col in client.list_collections():
         db = Chroma(
             collection_name=col.name,
             embedding_function=embedding,
-            persist_directory=CHROMA_PDF_DIR
+            persist_directory=CHROMA_MEMORY_DIR
         )
         db.delete_collection()
 
+######################################
+# PDF embedding
+######################################
 
-def clear_pdf_by_source(source_name):
-    """Delete all PDF data for a specific source using Chroma API."""
+def insert_new_chunks(chunks):
     db = Chroma(
         persist_directory=CHROMA_PDF_DIR,
         embedding_function=embedding
     )
-    
-    # Get all documents and their metadata
-    all_docs = db.get()
-    
-    if not all_docs["ids"]:
-        return  # No documents to delete
-    
-    # Find documents with matching source
-    ids_to_delete = []
-    for i, metadata in enumerate(all_docs["metadatas"]):
-        source_path = metadata.get("source")
-        if source_path and os.path.basename(source_path) == source_name:
-            ids_to_delete.append(all_docs["ids"][i])
-    
-    # Delete documents with matching source
-    if ids_to_delete:
-        db.delete(ids=ids_to_delete)
-        print(f"Deleted {len(ids_to_delete)} documents from source: {source_name}")
-    else:
-        print(f"No documents found with source: {source_name}")
+    # Chunks should be a list of Document objects with metadata
+    ids = [str(uuid.uuid4()) for _ in chunks]
+    db.add_documents(chunks, ids=ids)
+    return True
 
 def get_available_user_ids():
     import re
-    collections = Chroma(persist_directory=CHROMA_MEMORY_DIR, embedding_function=None)._client.list_collections()
+    client = Chroma(persist_directory=CHROMA_MEMORY_DIR, embedding_function=None)._client
     user_ids = []
-    for col in collections:
+    for col in client.list_collections():
         match = re.match(r"user_(.+)", col.name)
         if match:
             user_ids.append(match.group(1))
@@ -175,32 +122,105 @@ def get_pdf_sources():
     all_docs = db.get()
     sources = set()
     for meta in all_docs["metadatas"]:
-        if "source" in meta:
-            sources.add(meta["source"])
-    return list(sources)
+        if "source" in meta and "user_id" in meta:
+            sources.add((meta["source"], meta["user_id"]))
+    return [{"source": s, "ingested_by": u} for s, u in sources]
 
-def retrieve_pdf_for_user(query, userid, k=3):
-    """
-    Retrieve the top-k most relevant PDF document chunks for a given query, but only from PDFs the user has access to (own + global).
-    """
-    user_pdfs = get_user_pdfs(userid)
-    allowed_filenames = set(filename for _, filename in user_pdfs)
+def retrieve_pdf_for_user(user_id, query, k=3):
     db = Chroma(
         persist_directory=CHROMA_PDF_DIR,
         embedding_function=embedding
     )
     all_docs = db.get()
-    # Filter docs by allowed filenames
+    # Filter docs by user_id or is_public
     filtered_docs = []
-    filtered_metadatas = []
     for i, meta in enumerate(all_docs["metadatas"]):
-        source = meta.get("source")
-        if source and os.path.basename(source) in allowed_filenames:
-            filtered_docs.append(all_docs["documents"][i])
-            filtered_metadatas.append(meta)
+        if meta.get("user_id") == user_id or meta.get("is_public") == 1:
+            doc_text = all_docs["documents"][i]
+            filtered_docs.append(Document(page_content=doc_text, metadata=meta))
     if not filtered_docs:
         return []
-    # Create a temporary Chroma collection for similarity search on filtered docs
+    # Create a temporary Chroma collection for filtered docs
     temp_db = Chroma.from_documents(filtered_docs, embedding=embedding)
     results = temp_db.similarity_search(query, k=k)
     return results
+
+def clear_pdf_by_source(source_name, user_id):
+    """
+    Delete all vector chunks for a given PDF source that belong to the specified user.
+    Only deletes chunks where both source (or filename) and user_id match.
+    For public PDFs, only deletes the user's own ingested copy.
+    """
+    db = Chroma(
+        persist_directory=CHROMA_PDF_DIR,
+        embedding_function=embedding
+    )
+    all_docs = db.get()
+    ids_to_delete = []
+    for i, meta in enumerate(all_docs["metadatas"]):
+        if (
+            (meta.get("source") == source_name or meta.get("filename") == source_name)
+            and meta.get("user_id") == user_id
+        ):
+            ids_to_delete.append(all_docs["ids"][i])
+    if ids_to_delete:
+        db.delete(ids=ids_to_delete)
+
+
+def clear_pdf_by_user(user_id):
+    """
+    Delete all vector chunks for all PDFs ingested by the specified user.
+    Does not delete public PDFs ingested by other users.
+    """
+    db = Chroma(
+        persist_directory=CHROMA_PDF_DIR,
+        embedding_function=embedding
+    )
+    all_docs = db.get()
+    ids_to_delete = []
+    for i, meta in enumerate(all_docs["metadatas"]):
+        if meta.get("user_id") == user_id:
+            ids_to_delete.append(all_docs["ids"][i])
+    if ids_to_delete:
+        db.delete(ids=ids_to_delete)
+
+def clear_all_pdf():
+    client = Chroma(persist_directory=CHROMA_PDF_DIR, embedding_function=None)._client
+    for col in client.list_collections():
+        db = Chroma(
+            collection_name=col.name,
+            embedding_function=embedding,
+            persist_directory=CHROMA_PDF_DIR
+        )
+        db.delete_collection()
+
+if __name__ == "__main__":
+    print("=== Vectordb Test ===")
+    # Test user message history
+    test_user = "testuser"
+    print(f"Saving messages for user: {test_user}")
+    save_user_message(test_user, "Hello, this is the first message.")
+    save_user_message(test_user, "This is a follow-up message.")
+    save_user_message(test_user, "Another message about AI.")
+    print("All history:", get_all_history(test_user))
+    print("Memory search for 'AI':", retrieve_user_memory(test_user, "AI", k=2))
+    print("Clearing user history...")
+    clear_history_by_user(test_user)
+    print("All history after clear:", get_all_history(test_user))
+
+    # Test PDF embedding
+    from langchain_core.documents import Document
+    print("\nInserting PDF chunks...")
+    chunks = [
+        Document(page_content="This is a PDF chunk about machine learning.", metadata={"user_id": test_user, "filename": "ml.pdf", "source": "ml.pdf", "is_public": 0}),
+        Document(page_content="This is a public PDF chunk about AI.", metadata={"user_id": "otheruser", "filename": "ai.pdf", "source": "ai.pdf", "is_public": 1}),
+    ]
+    insert_new_chunks(chunks)
+    print("PDF sources:", get_pdf_sources())
+    print("Retrieve PDF for user (should get both public and own):", retrieve_pdf_for_user(test_user, "AI", k=2))
+    print("Clearing PDF by source 'ml.pdf'...")
+    clear_pdf_by_source("ml.pdf", test_user)
+    print("Retrieve PDF for user after clear by source:", retrieve_pdf_for_user(test_user, "machine", k=2))
+    print("Clearing all PDF data...")
+    clear_all_pdf()
+    print("Retrieve PDF for user after clear all:", retrieve_pdf_for_user(test_user, "AI", k=2))

@@ -2,152 +2,207 @@ import os
 from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-# from langchain_chroma import Chroma
-from langchain_openai import OpenAIEmbeddings
-from utils.vectordb import clear_all_pdf, insert_new_chunks
-from userdb import get_all_users
+from langchain_core.documents import Document
+from utils.sqlitedb import get_all_pdfs, get_pdfs_by_user, ingest
+from utils.vectordb import insert_new_chunks
 
-print("Loading environment variables...")
 load_dotenv(".env")
-
-embedding = OpenAIEmbeddings()
 
 PERSIST_DIR = os.getenv("PERSIST_DIR", "")
 DATA_DIR = os.path.join(PERSIST_DIR, "data")
-# DATA_DIR = "data"
 
-def user_exists(userid: str) -> bool:
-    users = get_all_users()
-    return any(u[0] == userid for u in users)
+splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
 
-def get_available_pdfs():
-    os.makedirs(DATA_DIR, exist_ok=True)
-    
-    pdfs = [f for f in os.listdir(DATA_DIR) if f.lower().endswith('.pdf')]
-    print("Available PDFs:", pdfs)
-    return pdfs
+####################################
+# Admin
+####################################
 
-def ingest_all_pdfs(clear_pdf: bool = False, user_id: str = None):
-    os.makedirs(DATA_DIR, exist_ok=True)
-    if user_id and not user_exists(user_id):
-        print(f"User {user_id} does not exist. Skipping ingestion.")
-        return {"ingested_files": [], "chunks": 0, "success": False, "warning": f"User {user_id} does not exist."}
-    if clear_pdf:
-        clear_all_pdf()
-        print("Previous PDF data cleared.")
+def ingest_all_pdfs():
+    """Admin: Ingest all PDFs in public folder."""
+    public_dir = os.path.join(DATA_DIR, "public")
+    if not os.path.exists(public_dir):
+        print(f"No public directory: {public_dir}")
+        return
+    pdfs = [f for f in os.listdir(public_dir) if f.lower().endswith('.pdf')]
+    if not pdfs:
+        print("No public PDFs found.")
+        return
+    for pdf in pdfs:
+        file_path = os.path.join(public_dir, pdf)
+        try:
+            loader = PyPDFLoader(file_path)
+            docs = loader.load()
+            chunks = splitter.split_documents(docs)
+            for c in chunks:
+                c.metadata = {"user_id": "public", "filename": pdf, "source": pdf, "is_public": 1}
+            insert_new_chunks(chunks)
+            ingest(pdf, "public", 1)
+            print(f"Ingested public PDF: {pdf}")
+        except Exception as e:
+            print(f"Failed to ingest {pdf}: {e}")
+
+def ingest_one_pdf_admin(filename: str, user_id: str = None):
+    """Admin: Ingest one PDF for any user or for all (public). If user_id is None, treat as public."""
+    all_pdfs = get_all_pdfs()
+    pdf_info = None
+    for pdf in all_pdfs:
+        if pdf["filename"] == filename:
+            pdf_info = pdf
+            break
+    if not pdf_info:
+        print(f"PDF '{filename}' not found in database.")
+        return
+    # Correct file path logic
+    if pdf_info["is_public"] == 1:
+        file_path = os.path.join(DATA_DIR, "public", filename)
     else:
-        print("Keeping previous PDF data.")
-    # Get user's accessible PDFs if user_id is provided
-    if user_id:
-        from userdb import get_user_pdfs
-        user_pdfs = get_user_pdfs(user_id)
-        allowed_filenames = set(filename for _, filename in user_pdfs)
-        print(f"Ingesting PDFs accessible to user {user_id}: {allowed_filenames}")
-    else:
-        allowed_filenames = None
-        print("Ingesting all PDFs (admin mode)")
-    all_docs = []
-    ingested_files = []
-    # Ingest PDFs from correct folders using relative paths
-    if user_id:
-        # Ingest user's own PDFs
-        user_folder = os.path.join(DATA_DIR, user_id)
-        if os.path.isdir(user_folder):
-            for file in os.listdir(user_folder):
-                if file.lower().endswith(".pdf"):
-                    rel_path = os.path.join(user_id, file)
-                    if allowed_filenames and rel_path not in allowed_filenames:
-                        print(f"Skipping {rel_path} - not accessible to user {user_id}")
-                        continue
-                    try:
-                        loader = PyPDFLoader(os.path.join(DATA_DIR, rel_path))
-                        docs = loader.load()
-                        all_docs.extend(docs)
-                        ingested_files.append(rel_path)
-                    except Exception as e:
-                        print(f"Error processing {rel_path}: {e}")
-                        continue
-        # Ingest public PDFs
-        public_folder = os.path.join(DATA_DIR, "public")
-        if os.path.isdir(public_folder):
-            for file in os.listdir(public_folder):
-                if file.lower().endswith(".pdf"):
-                    rel_path = os.path.join("public", file)
-                    if allowed_filenames and rel_path not in allowed_filenames:
-                        print(f"Skipping {rel_path} - not accessible to user {user_id}")
-                        continue
-                    try:
-                        loader = PyPDFLoader(os.path.join(DATA_DIR, rel_path))
-                        docs = loader.load()
-                        all_docs.extend(docs)
-                        ingested_files.append(rel_path)
-                    except Exception as e:
-                        print(f"Error processing {rel_path}: {e}")
-                        continue
-    else:
-        # Ingest all PDFs in all user and public folders
-        for folder in os.listdir(DATA_DIR):
-            folder_path = os.path.join(DATA_DIR, folder)
-            if not os.path.isdir(folder_path):
-                continue
-            for file in os.listdir(folder_path):
-                if file.lower().endswith(".pdf"):
-                    rel_path = os.path.join(folder, file)
-                    try:
-                        loader = PyPDFLoader(os.path.join(DATA_DIR, rel_path))
-                        docs = loader.load()
-                        all_docs.extend(docs)
-                        ingested_files.append(rel_path)
-                    except Exception as e:
-                        print(f"Error processing {rel_path}: {e}")
-                        continue
-    if not all_docs:
-        print("⚠️ No documents to ingest.")
-        return {"ingested_files": ingested_files, "chunks": 0, "success": False, "warning": "No documents to ingest."}
-    splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+        file_path = os.path.join(DATA_DIR, pdf_info["uploaded_by"], filename)
     try:
-        chunks = splitter.split_documents(all_docs)
-        if not chunks:
-            print("⚠️ No chunks to ingest. Skipping insertion.")
-            return {"ingested_files": ingested_files, "chunks": 0, "success": False, "warning": "No chunks to ingest."}
-        success = insert_new_chunks(chunks)
-        return {"ingested_files": ingested_files, "chunks": len(chunks), "success": success}
+        loader = PyPDFLoader(file_path)
+        docs = loader.load()
+        chunks = splitter.split_documents(docs)
+        if user_id:
+            meta_user = user_id
+            is_public = 0
+        else:
+            meta_user = "public"
+            is_public = 1
+        for c in chunks:
+            c.metadata = {
+                "user_id": meta_user,
+                "filename": pdf_info["filename"],
+                "source": pdf_info["filename"],
+                "is_public": is_public
+            }
+        insert_new_chunks(chunks)
+        ingest(pdf_info["filename"], meta_user, is_public)
+        print(f"Admin ingested PDF: {filename} for user: {meta_user}")
     except Exception as e:
-        print(f"Error splitting/ingesting documents: {e}")
-        return {"ingested_files": ingested_files, "chunks": 0, "success": False, "error": str(e)}
+        print(f"Failed to ingest {filename}: {e}")
 
-def ingest_one_pdf(filename: str, user_id: str = None):
-    os.makedirs(DATA_DIR, exist_ok=True)
-    
-    """Ingest a single PDF file by filename in the data/data directory."""
-    file_path = os.path.join(DATA_DIR, filename)
-    if not os.path.isfile(file_path) or not filename.lower().endswith(".pdf"):
-        print("File not found or not a PDF.")
-        return {"error": "File not found or not a PDF."}
-    
-    # Check if user has access to this PDF
-    if user_id:
-        from userdb import get_user_pdfs
-        user_pdfs = get_user_pdfs(user_id)
-        allowed_filenames = set(filename for _, filename in user_pdfs)
-        if filename not in allowed_filenames:
-            print(f"User {user_id} does not have access to {filename}")
-            return {"error": f"User {user_id} does not have access to {filename}"}
-    
-    loader = PyPDFLoader(file_path)
-    docs = loader.load()
-    splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-    chunks = splitter.split_documents(docs)
-    if not chunks:
-        print(f"⚠️ No chunks to ingest for {filename}. Skipping insertion.")
-        return {"ingested_file": filename, "chunks": 0, "success": False, "warning": "No chunks to ingest."}
-    success = insert_new_chunks(chunks)
-    print(f"✅ Saved {len(chunks)} PDF chunks from {filename}.")
-    return {"ingested_file": filename, "chunks": len(chunks), "success": success}
+def ingest_one_pdf_public(filename: str):
+    """Admin: Ingest one PDF as public (user_id='public', is_public=1)."""
+    all_pdfs = get_all_pdfs()
+    pdf_info = None
+    for pdf in all_pdfs:
+        if pdf["filename"] == filename:
+            pdf_info = pdf
+            break
+    if not pdf_info:
+        print(f"PDF '{filename}' not found in database.")
+        return
+    # if pdf_info["is_public"] != 1:
+    #     print(f"ERROR: Only public PDFs can be ingested as public.")
+    #     return
+    file_path = os.path.join(DATA_DIR, "public", filename)
+    try:
+        loader = PyPDFLoader(file_path)
+        docs = loader.load()
+        chunks = splitter.split_documents(docs)
+        for c in chunks:
+            c.metadata = {
+                "user_id": "public",
+                "filename": pdf_info["filename"],
+                "source": pdf_info["filename"],
+                "is_public": 1
+            }
+        insert_new_chunks(chunks)
+        ingest(pdf_info["filename"], "public", 1)
+        print(f"Admin ingested PDF: {filename} as public.")
+    except Exception as e:
+        print(f"Failed to ingest {filename}: {e}")
+
+def ingest_one_pdf_private(filename: str, user_id: str):
+    """Admin: Ingest one PDF for a specific user (user_id, is_public=0)."""
+    all_pdfs = get_all_pdfs()
+    pdf_info = None
+    for pdf in all_pdfs:
+        if pdf["filename"] == filename:
+            pdf_info = pdf
+            break
+    if not pdf_info:
+        print(f"PDF '{filename}' not found in database.")
+        return
+    # Determine correct file path
+    if pdf_info["is_public"] == 1:
+        file_path = os.path.join(DATA_DIR, "public", filename)
+    else:
+        file_path = os.path.join(DATA_DIR, pdf_info["uploaded_by"], filename)
+    try:
+        loader = PyPDFLoader(file_path)
+        docs = loader.load()
+        chunks = splitter.split_documents(docs)
+        for c in chunks:
+            c.metadata = {
+                "user_id": user_id,
+                "filename": pdf_info["filename"],
+                "source": pdf_info["filename"],
+                "is_public": 0
+            }
+        insert_new_chunks(chunks)
+        ingest(pdf_info["filename"], user_id, 0)
+        print(f"Admin ingested PDF: {filename} for user: {user_id}.")
+    except Exception as e:
+        print(f"Failed to ingest {filename}: {e}")
+
+# Deprecated: use the new explicit functions above
+
+####################################
+# User
+####################################
+
+def ingest_my_all_pdfs(user_id: str = None, is_public: bool = False):
+    """User: Ingest all PDFs uploaded by this user. Only for me."""
+    if not user_id:
+        print("user_id required")
+        return
+    pdfs = get_pdfs_by_user(user_id)
+    if not pdfs:
+        print(f"No PDFs found for user {user_id}")
+        return
+    for pdf in pdfs:
+        if is_public and not pdf["is_public"]:
+            continue
+        file_path = os.path.join(DATA_DIR, pdf["filepath"])
+        try:
+            loader = PyPDFLoader(file_path)
+            docs = loader.load()
+            chunks = splitter.split_documents(docs)
+            for c in chunks:
+                c.metadata = {"user_id": user_id, "filename": pdf["filename"], "source": pdf["filename"], "is_public": pdf["is_public"]}
+            insert_new_chunks(chunks)
+            ingest(pdf["filename"], user_id, pdf["is_public"])
+            print(f"User {user_id} ingested PDF: {pdf['filename']}")
+        except Exception as e:
+            print(f"Failed to ingest {pdf['filename']}: {e}")
+
+def ingest_one_pdf_user(filename: str, user_id: str = None):
+    """User: Ingest one PDF, but can only ingest PDFs which user uploaded."""
+    if not user_id:
+        print("user_id required")
+        return
+    user_pdfs = get_pdfs_by_user(user_id)
+    pdf_info = None
+    for pdf in user_pdfs:
+        if pdf["filename"] == filename:
+            pdf_info = pdf
+            break
+    if not pdf_info:
+        print(f"PDF '{filename}' not found or not permitted for user {user_id}.")
+        return
+    file_path = os.path.join(DATA_DIR, pdf_info["filepath"])
+    try:
+        loader = PyPDFLoader(file_path)
+        docs = loader.load()
+        chunks = splitter.split_documents(docs)
+        for c in chunks:
+            c.metadata = {"user_id": user_id, "filename": pdf_info["filename"], "source": pdf_info["filename"], "is_public": pdf_info["is_public"]}
+        insert_new_chunks(chunks)
+        ingest(pdf_info["filename"], user_id, pdf_info["is_public"])
+        print(f"User {user_id} ingested PDF: {filename}")
+    except Exception as e:
+        print(f"Failed to ingest {filename}: {e}")
 
 if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser(description="Ingest PDF files into ChromaDB")
-    parser.add_argument("--clear-pdf", action="store_true", help="Clear previous PDF data before ingesting")
-    args = parser.parse_args()
-    ingest_all_pdfs(clear_pdf=args.clear_pdf) 
+    print("Ingest all public PDFs (admin)")
+    ingest_all_pdfs()

@@ -18,4 +18,4 @@ def verify_admin_credentials(credentials: HTTPBasicCredentials = Depends(securit
 
 @router.get("/admin/auth/check")
 def admin_auth_check(credentials: HTTPBasicCredentials = Depends(verify_admin_credentials)):
-    return {"success": True, "message": "Admin authentication successful."}
+    return {"detail": "Admin authentication successful."}

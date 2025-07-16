@@ -13,6 +13,8 @@ class LanguageModel:
     def predict(self, prompt):
         return self.llm.invoke(prompt).content
 
+LLM = LanguageModel()
+
 if __name__ == "__main__":
     llm = LanguageModel(fake_model=False)
     while True:

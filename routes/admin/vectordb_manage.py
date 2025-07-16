@@ -2,62 +2,80 @@ import os
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import HTTPBasicCredentials
 from typing import Optional
-from utils.ingest import ingest_all_pdfs, ingest_one_pdf
-from utils.vectordb import clear_all_pdf, clear_pdf_by_source, get_pdf_sources, clear_all_memory, clear_memory_by_user
 from routes.admin.admin_auth import verify_admin_credentials
+import utils.ingest as ingest
+import utils.vectordb as vectordb
 
 router = APIRouter()
 
 @router.post("/admin/vectordb/ingest/all")
 def ingest_all(credentials: HTTPBasicCredentials = Depends(verify_admin_credentials)):
     try:
-        result = ingest_all_pdfs()
-        return {"ingested": result}
+        ingest.ingest_all_pdfs()
+        return {"detail": "All public PDFs ingested."}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to ingest all PDFs: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/admin/vectordb/ingest/{filename}")
+@router.post("/admin/vectordb/ingest/one/{filename}")
 def ingest_by_filename(filename: str, credentials: HTTPBasicCredentials = Depends(verify_admin_credentials)):
     try:
-        result = ingest_one_pdf(filename)
-        return {"ingested": result}
+        ingest.ingest_one_pdf_admin(filename)
+        return {"detail": f"PDF '{filename}' ingested."}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to ingest PDF: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/admin/vectordb/ingest/public/{filename}")
+def ingest_public_pdf(filename: str, credentials: HTTPBasicCredentials = Depends(verify_admin_credentials)):
+    try:
+        ingest.ingest_one_pdf_public(filename)
+        return {"detail": f"PDF '{filename}' ingested as public."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/admin/vectordb/ingest/private/{filename}")
+def ingest_private_pdf(filename: str, user_id: str, credentials: HTTPBasicCredentials = Depends(verify_admin_credentials)):
+    try:
+        ingest.ingest_one_pdf_private(filename, user_id)
+        return {"detail": f"PDF '{filename}' ingested for user '{user_id}'."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/admin/vectordb/pdf/{filename}")
 def remove_pdf_data(filename: str, credentials: HTTPBasicCredentials = Depends(verify_admin_credentials)):
     try:
-        clear_pdf_by_source(filename)
-        return {"removed": filename}
+        vectordb.clear_pdf_by_source(filename)
+        return {"detail": f"PDF data for '{filename}' removed from vectordb."}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to remove PDF data: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/admin/vectordb/pdf/user/{owner}")
 def remove_pdf_data_by_user(owner: str, credentials: HTTPBasicCredentials = Depends(verify_admin_credentials)):
-    # This would require iterating all PDFs for the user and removing them
-    # For now, just a placeholder
-    return {"removed": f"All PDFs for user {owner} (not implemented)"}
+    try:
+        vectordb.clear_pdf_by_user(owner)
+        return {"detail": f"All PDF data for user '{owner}' removed from vectordb."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/admin/vectordb/pdf")
 def get_available_pdf_data(credentials: HTTPBasicCredentials = Depends(verify_admin_credentials)):
     try:
-        sources = get_pdf_sources()
+        sources = vectordb.get_pdf_sources()
         return {"sources": sources}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get PDF sources: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/admin/vectordb/memory")
 def clear_all_users_memory(credentials: HTTPBasicCredentials = Depends(verify_admin_credentials)):
     try:
-        clear_all_memory()
-        return {"message": "Memory cleared for all users."}
+        vectordb.clear_history_all()
+        return {"detail": "All user chat histories cleared from vectordb."}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to clear all memory: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/admin/vectordb/memory/{user_id}")
 def clear_user_memory(user_id: str, credentials: HTTPBasicCredentials = Depends(verify_admin_credentials)):
     try:
-        clear_memory_by_user(user_id)
-        return {"message": f"Memory cleared for user {user_id}."}
+        vectordb.clear_history_by_user(user_id)
+        return {"detail": f"Chat history for user '{user_id}' cleared from vectordb."}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to clear memory: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

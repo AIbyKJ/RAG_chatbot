@@ -150,25 +150,39 @@ python Client/test_multi_chat.py
 
 ```
 RAG_chatbot/
-├── Client/                    # Chat clients and tools
-│   ├── chat_client.py        # Main chat interface
-│   ├── data_management.py    # PDF management tools
-│   ├── memory_management.py  # Memory and vector operations
-│   ├── user_tools.py         # User management utilities
-│   ├── admin_tools.py        # Admin-specific operations
-│   ├── user_management.py    # User CRUD operations
-│   └── test_multi_chat.py    # Azure deployment testing
-├── data/                     # PDF storage directory
-├── chroma/                   # Vector database storage
-├── Demo/                     # Demo videos and guides
-├── main.py                   # FastAPI application
-├── userdb.py                 # User database operations
-├── ingest.py                 # PDF ingestion logic
-├── vectordb.py               # Vector database operations
-├── llm.py                    # Language model integration
-├── user_data.db              # SQLite user database
-├── requirements.txt          # Python dependencies
-└── Dockerfile                # Docker configuration
+├── Client/
+│   ├── admin_tools.py
+│   ├── chat_client.py
+│   ├── test_multi_chat.py
+│   ├── user_tools.py
+├── data/
+│   ├── public/
+│   │   └── ... (public PDFs)
+│   ├── user_1/
+│   │   └── ... (user_1's PDFs)
+│   └── ... (other user folders)
+├── Dockerfile
+├── main.py
+├── README.md
+├── requirements.txt
+├── routes/
+│   ├── admin/
+│   │   ├── admin_auth.py
+│   │   ├── chat_manage.py
+│   │   ├── data_manage.py
+│   │   ├── user_manage.py
+│   │   └── vectordb_manage.py
+│   └── user/
+│       ├── chat_manage.py
+│       ├── data_manage.py
+│       ├── user_auth.py
+│       ├── user_manage.py
+│       └── vectordb_manage.py
+└── utils/
+    ├── ingest.py
+    ├── llm.py
+    ├── vectordb.py
+    └── sqlitedb.py
 ```
 
 ## Configuration

@@ -20,8 +20,8 @@ def authenticate():
         except Exception as e:
             print(f"❌ Error connecting to server: {e}\n")
 
-def print_history(user_id, auth):
-    history_api = f"{BASE_URL}/user/chat/history/{user_id}"
+def print_history(auth):
+    history_api = f"{BASE_URL}/user/chat/history"
     try:
         res = requests.get(history_api, auth=auth)
         print("*" * 10)
@@ -56,10 +56,10 @@ def chat():
             
             if res.status_code == 200:
                 response_data = res.json()
-                print_history(user_id, auth)
-                print("Prompt: ", response_data["prompt"])
+                print_history(auth)
+                print("Prompt: ", response_data.get("prompt", ""))
                 print("*" * 10)
-                print("🤖 Predict:", response_data["response"])
+                print("🤖 Predict:", response_data.get("response", ""))
             else:
                 try:
                     error_data = res.json()

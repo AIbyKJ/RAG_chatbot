@@ -1,66 +1,83 @@
 import os
-import sqlite3
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Query, Body, Form
 from fastapi.security import HTTPBasicCredentials
 from typing import List
-from datetime import datetime
 from routes.user.user_auth import verify_user_credentials
+import utils.sqlitedb as db
 
-PERSIST_DIR = os.getenv("PERSIST_DIR", "./chroma")
-DB_PATH = os.path.join(PERSIST_DIR, "users.db")
-DATA_DIR = os.getenv("DATA_DIR", "./data")
+PERSIST_DIR = os.getenv("PERSIST_DIR", "")
+DATA_DIR = os.path.join(PERSIST_DIR, "data")
 
 router = APIRouter()
 
-def get_db():
-    os.makedirs(PERSIST_DIR, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
-
 @router.post("/user/pdf/upload")
-def upload_pdf(files: List[UploadFile] = File(...), credentials: HTTPBasicCredentials = Depends(verify_user_credentials)):
-    user_id = credentials.username
-    folder = os.path.join(DATA_DIR, user_id)
-    os.makedirs(folder, exist_ok=True)
-    saved_files = []
-    conn = get_db()
-    c = conn.cursor()
+def upload_pdf(
+    files: List[UploadFile] = File(...),
+    credentials: HTTPBasicCredentials = Depends(verify_user_credentials),
+    is_public: int = Form(0)
+):
+    uploaded = []
     for file in files:
         if not file.filename.lower().endswith(".pdf"):
             continue
-        file_path = os.path.join(folder, file.filename)
+        if is_public:
+            save_dir = os.path.join(DATA_DIR, "public")
+            db_path = os.path.join("public", file.filename)
+        else:
+            save_dir = os.path.join(DATA_DIR, credentials.username)
+            db_path = os.path.join(credentials.username, file.filename)
+        os.makedirs(save_dir, exist_ok=True)
+        file_path = os.path.join(save_dir, file.filename)
         with open(file_path, "wb") as f:
             f.write(file.file.read())
-        c.execute("INSERT INTO pdfs (filename, owner, upload_time) VALUES (?, ?, ?)", (file.filename, user_id, datetime.utcnow().isoformat()))
-        saved_files.append(file.filename)
-    conn.commit()
-    conn.close()
-    return {"uploaded": saved_files}
-
-@router.delete("/user/pdf/{filename}")
-def delete_pdf(filename: str, credentials: HTTPBasicCredentials = Depends(verify_user_credentials)):
-    user_id = credentials.username
-    folder = os.path.join(DATA_DIR, user_id)
-    file_path = os.path.join(folder, filename)
-    conn = get_db()
-    c = conn.cursor()
-    if os.path.isfile(file_path):
-        os.remove(file_path)
-        c.execute("DELETE FROM pdfs WHERE filename = ? AND owner = ?", (filename, user_id))
-        conn.commit()
-        conn.close()
-        return {"deleted": filename}
-    else:
-        conn.close()
-        raise HTTPException(status_code=404, detail="File not found.")
+        db.add_pdf(file.filename, credentials.username, is_public, db_path)
+        uploaded.append(file.filename)
+    if not uploaded:
+        raise HTTPException(status_code=400, detail="No valid PDFs uploaded.")
+    return {"uploaded": uploaded}
 
 @router.get("/user/pdf")
 def list_pdfs(credentials: HTTPBasicCredentials = Depends(verify_user_credentials)):
-    user_id = credentials.username
-    conn = get_db()
-    c = conn.cursor()
-    c.execute("SELECT filename FROM pdfs WHERE owner = ?", (user_id,))
-    pdfs = c.fetchall()
-    conn.close()
-    return [row["filename"] for row in pdfs]
+    pdfs = db.get_pdfs_by_user(credentials.username)
+    return {"pdfs": pdfs}
+
+@router.post("/user/pdf/delete")
+def delete_pdf(
+    data: dict = Body(...),
+    credentials: HTTPBasicCredentials = Depends(verify_user_credentials)
+):
+    filenames = data.get("filenames")
+    if not filenames or not isinstance(filenames, list):
+        raise HTTPException(status_code=400, detail="Missing or invalid 'filenames' (must be a list).")
+    deleted = []
+    errors = []
+    for filename in filenames:
+        pdfs = db.get_pdfs_by_user(credentials.username)
+        pdf_info = next((pdf for pdf in pdfs if pdf["filename"] == filename), None)
+        if not pdf_info:
+            errors.append({"filename": filename, "error": "Not found in database"})
+            continue
+        if pdf_info["is_public"] == 1:
+            abs_file_path = os.path.join(DATA_DIR, "public", filename)
+        else:
+            abs_file_path = os.path.join(DATA_DIR, credentials.username, filename)
+        if not os.path.exists(abs_file_path):
+            errors.append({"filename": filename, "error": "File not found on disk"})
+            continue
+        try:
+            os.remove(abs_file_path)
+        except Exception as e:
+            errors.append({"filename": filename, "error": str(e)})
+            continue
+        success = db.delete_pdf_by_filename(filename)
+        if not success:
+            errors.append({"filename": filename, "error": "Failed to delete from database"})
+            continue
+        deleted.append(filename)
+    return {"deleted": deleted, "errors": errors}
+
+@router.get("/user/ingested_pdfs")
+def list_ingested_pdfs(credentials: HTTPBasicCredentials = Depends(verify_user_credentials)):
+    from utils.sqlitedb import get_ingested_pdfs_by_user
+    pdfs = get_ingested_pdfs_by_user(credentials.username)
+    return {"ingested_pdfs": pdfs}
