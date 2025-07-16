@@ -159,3 +159,7 @@ Thumbs.db
 
 # Cursor IDE
 .cursorignore 
+
+# Ignore data and sqlite folders
+/data/
+/sqlite/ 
