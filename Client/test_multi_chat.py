@@ -5,6 +5,7 @@ from datetime import datetime
 import random
 import argparse
 import sys
+from requests.auth import HTTPBasicAuth
 
 BASE_URL = "http://127.0.0.1:8000"
 # BASE_URL = "http://40.82.161.202:8000"
@@ -36,7 +37,7 @@ def parse_args():
     return parser.parse_args()
 
 def get_auth(user_index):
-    return test_users[user_index % len(test_users)]
+    return HTTPBasicAuth(*test_users[user_index % len(test_users)])
 
 async def send_chat(index, user_id, user_index, delay, log_to_prompt, log_to_file, lock, success_count):
     chat_api = f"{BASE_URL}/chat"

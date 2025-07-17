@@ -116,6 +116,7 @@ def ingest_one_pdf_private(filename: str, user_id: str):
     """Admin: Ingest one PDF for a specific user (user_id, is_public=0)."""
     all_pdfs = get_all_pdfs()
     pdf_info = None
+    print("TEST", all_pdfs)
     for pdf in all_pdfs:
         if pdf["filename"] == filename:
             pdf_info = pdf

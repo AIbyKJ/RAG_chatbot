@@ -132,20 +132,23 @@ def retrieve_pdf_for_user(user_id, query, k=3):
         embedding_function=embedding
     )
     all_docs = db.get()
+
     # Filter docs by user_id or is_public
     filtered_docs = []
     for i, meta in enumerate(all_docs["metadatas"]):
+        # print(meta.get("user_id"), meta.get("is_public"))
         if meta.get("user_id") == user_id or meta.get("is_public") == 1:
             doc_text = all_docs["documents"][i]
             filtered_docs.append(Document(page_content=doc_text, metadata=meta))
     if not filtered_docs:
         return []
+
     # Create a temporary Chroma collection for filtered docs
     temp_db = Chroma.from_documents(filtered_docs, embedding=embedding)
     results = temp_db.similarity_search(query, k=k)
     return results
 
-def clear_pdf_by_source(source_name, user_id):
+def clear_pdf_by_source(source_name):
     """
     Delete all vector chunks for a given PDF source that belong to the specified user.
     Only deletes chunks where both source (or filename) and user_id match.
@@ -160,7 +163,7 @@ def clear_pdf_by_source(source_name, user_id):
     for i, meta in enumerate(all_docs["metadatas"]):
         if (
             (meta.get("source") == source_name or meta.get("filename") == source_name)
-            and meta.get("user_id") == user_id
+            # and meta.get("user_id") == user_id
         ):
             ids_to_delete.append(all_docs["ids"][i])
     if ids_to_delete:
