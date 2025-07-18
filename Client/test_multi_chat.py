@@ -15,11 +15,11 @@ test_duration = 120
 
 # Define a list of test users (userid, password)
 test_users = [
-    ("testuser1", "testpass1"),
-    ("testuser2", "testpass2"),
-    ("testuser3", "testpass3"),
-    ("testuser4", "testpass4"),
-    ("testuser5", "testpass5"),
+    ("user_1", "123123"),
+    ("user_2", "123123"),
+    # ("testuser3", "testpass3"),
+    # ("testuser4", "testpass4"),
+    # ("testuser5", "testpass5"),
 ]
 
 question_list = [
@@ -40,8 +40,8 @@ def get_auth(user_index):
     return HTTPBasicAuth(*test_users[user_index % len(test_users)])
 
 async def send_chat(index, user_id, user_index, delay, log_to_prompt, log_to_file, lock, success_count):
-    chat_api = f"{BASE_URL}/chat"
-    history_api = f"{BASE_URL}/chat/history/{user_id}"
+    chat_api = f"{BASE_URL}/user/chat"
+    history_api = f"{BASE_URL}/user/chat/history"
     await asyncio.sleep(delay)
     message = f"{random.choice(question_list)} {index}"
     try:

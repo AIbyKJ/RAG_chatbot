@@ -54,7 +54,10 @@ def retrieve_user_memory(user_id, query, k=3):
         embedding_function=embedding,
         persist_directory=CHROMA_MEMORY_DIR
     )
-    return db.similarity_search(query, k=k)
+    results = db.similarity_search(query, k=k)
+    # Filter out any docs with None or empty page_content
+    filtered_results = [doc for doc in results if getattr(doc, "page_content", None)]
+    return filtered_results
 
 def get_all_history(user_id):
     db = Chroma(
