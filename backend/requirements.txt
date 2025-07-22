@@ -3,8 +3,8 @@ uvicorn
 openai
 langchain
 langchain_text_splitters
-chromadb=
-pypdf=
+chromadb
+pypdf
 python-dotenv
 tiktoken
 langchain-community
