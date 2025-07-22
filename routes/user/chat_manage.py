@@ -7,6 +7,7 @@ import utils.vectordb as vectordb
 from utils.vectordb import save_user_message, retrieve_user_memory, retrieve_pdf_for_user
 from utils.llm import LLM as chatmodel
 import asyncio
+from utils.logger import log_event
 
 router = APIRouter()
 
@@ -37,9 +38,11 @@ async def chat(req: ChatRequest, credentials: HTTPBasicCredentials = Depends(ver
     """
 
     response = await asyncio.to_thread(chatmodel.predict, prompt)
+    log_event(user_id, "user_chat", f"message={req.message}")
     return {"response": response, "prompt": prompt}
 
 @router.get("/user/chat/history")
 async def get_my_history(credentials: HTTPBasicCredentials = Depends(verify_user_credentials)):
     history = vectordb.get_all_history(credentials.username)
+    log_event(credentials.username, "user_get_chat_history", f"count={len(history)}")
     return {"user_id": credentials.username, "history": history}

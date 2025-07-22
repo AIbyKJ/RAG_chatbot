@@ -4,6 +4,7 @@ from fastapi.security import HTTPBasicCredentials
 from typing import List
 from routes.admin.admin_auth import verify_admin_credentials
 from utils.sqlitedb import add_pdf, get_all_pdfs, delete_pdf_by_filename, get_all_ingested_pdfs, get_pdf_filepath_by_filename
+from utils.logger import log_event
 
 PERSIST_DIR = os.getenv("PERSIST_DIR", "")
 DATA_DIR = os.path.join(PERSIST_DIR, "data")
@@ -35,6 +36,7 @@ def upload_pdf(
             f.write(file.file.read())
         add_pdf(file.filename, uploaded_by, is_public, db_path)
         uploaded.append(file.filename)
+        log_event(credentials.username, "admin_upload_pdf", f"filename={file.filename}, is_public={is_public}")
     if not uploaded:
         raise HTTPException(status_code=400, detail="No valid PDFs uploaded.")
     return {"uploaded": uploaded}
@@ -43,6 +45,7 @@ def upload_pdf(
 @router.get("/admin/pdf")
 def list_pdfs(credentials: HTTPBasicCredentials = Depends(verify_admin_credentials)):
     pdfs = get_all_pdfs()
+    log_event(credentials.username, "admin_list_pdfs", f"count={len(pdfs)}")
     return {"pdfs": pdfs}
 
 # delete pdfs list by filename
@@ -82,6 +85,7 @@ def delete_pdf(
             errors.append({"filename": filename, "error": "Failed to delete from database"})
             continue
         deleted.append(filename)
+        log_event(credentials.username, "admin_delete_pdf", f"filename={filename}")
     return {"deleted": deleted, "errors": errors}
 
 @router.post("/admin/pdf/delete_public")
@@ -109,4 +113,5 @@ def delete_all_public_pdfs(credentials: HTTPBasicCredentials = Depends(verify_ad
             errors.append({"filename": filename, "error": "Failed to delete from database"})
             continue
         deleted.append(filename)
+        log_event(credentials.username, "admin_delete_public_pdf", f"filename={filename}")
     return {"deleted": deleted, "errors": errors}

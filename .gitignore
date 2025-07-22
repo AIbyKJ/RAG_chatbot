@@ -163,3 +163,6 @@ Thumbs.db
 # Ignore data and sqlite folders
 /data/
 /sqlite/ 
+admin_client.log
+user_client.log
+server_events.log 
