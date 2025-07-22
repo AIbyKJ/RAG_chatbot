@@ -6,7 +6,7 @@ The entire application is designed to be containerized with Docker and deployed 
 
 ## Project Structure
 
-
+```
 .
 ├── backend/
 │   ├── Dockerfile
@@ -24,7 +24,7 @@ The entire application is designed to be containerized with Docker and deployed 
 │   └── ... (Load testing scripts)
 │
 └── docker-compose.yml
-
+```
 
 ## Features
 
