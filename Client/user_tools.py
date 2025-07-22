@@ -3,6 +3,7 @@ from requests.auth import HTTPBasicAuth
 import getpass
 import os
 from client_logger import log_client_event
+import pprint
 
 BASE_URL = "http://127.0.0.1:8000"
 
@@ -18,7 +19,7 @@ class UserToolsManager:
         is_public = input("Is public? (1 for yes, 0 for no): ").strip()
         res = requests.post(f"{BASE_URL}/user/pdf/upload", files=files, data={"is_public": is_public}, auth=self.auth)
         log_client_event(self.username, "user_upload_pdfs", "success" if res.status_code == 200 else "fail", f"files={filepaths}, is_public={is_public}, response={res.text}", is_admin=False)
-        print(res.json())
+        pprint.pprint(res.json())
 
     def upload_all_pdfs_from_folder(self):
         folder = input("Enter folder path: ").strip()
@@ -29,23 +30,23 @@ class UserToolsManager:
         is_public = input("Is public? (1 for yes, 0 for no): ").strip()
         res = requests.post(f"{BASE_URL}/user/pdf/upload", files=files, data={"is_public": is_public}, auth=self.auth)
         log_client_event(self.username, "user_upload_folder", "success" if res.status_code == 200 else "fail", f"folder={folder}, is_public={is_public}, response={res.text}", is_admin=False)
-        print(res.json())
+        pprint.pprint(res.json())
 
     def list_my_pdfs(self):
         res = requests.get(f"{BASE_URL}/user/pdf", auth=self.auth)
         log_client_event(self.username, "user_list_pdfs", "success" if res.status_code == 200 else "fail", f"response={res.text}", is_admin=False)
-        print(res.json())
+        pprint.pprint(res.json())
 
     def ingest_my_pdf(self):
         filename = input("Enter filename to ingest: ").strip()
         res = requests.post(f"{BASE_URL}/user/vectordb/ingest/one/{filename}", auth=self.auth)
         log_client_event(self.username, "user_ingest_pdf", "success" if res.status_code == 200 else "fail", f"filename={filename}, response={res.text}", is_admin=False)
-        print(res.json())
+        pprint.pprint(res.json())
 
     def ingest_all_my_pdfs(self):
         res = requests.post(f"{BASE_URL}/user/vectordb/ingest/all", auth=self.auth)
         log_client_event(self.username, "user_ingest_all_pdfs", "success" if res.status_code == 200 else "fail", f"response={res.text}", is_admin=False)
-        print(res.json())
+        pprint.pprint(res.json())
 
     def change_password(self):
         print("Not implemented. Please contact admin.")
@@ -54,18 +55,18 @@ class UserToolsManager:
         filename = input("Enter filename to remove from vectordb: ").strip()
         res = requests.delete(f"{BASE_URL}/user/vectordb/pdf/one/{filename}", auth=self.auth)
         log_client_event(self.username, "user_remove_pdf_vectordb", "success" if res.status_code == 200 else "fail", f"filename={filename}, response={res.text}", is_admin=False)
-        print(res.json())
+        pprint.pprint(res.json())
 
     def delete_all_my_pdfs_from_chroma(self):
         res = requests.delete(f"{BASE_URL}/user/vectordb/pdf/all", auth=self.auth)
         log_client_event(self.username, "user_remove_all_pdfs_vectordb", "success" if res.status_code == 200 else "fail", f"response={res.text}", is_admin=False)
-        print(res.json())
+        pprint.pprint(res.json())
 
     def delete_my_pdf_from_data_by_filename(self):
         filename = input("Enter filename to delete from storage: ").strip()
         res = requests.post(f"{BASE_URL}/user/pdf/delete", json={"filenames": [filename]}, auth=self.auth)
         log_client_event(self.username, "user_delete_pdf_data", "success" if res.status_code == 200 else "fail", f"filename={filename}, response={res.text}", is_admin=False)
-        print(res.json())
+        pprint.pprint(res.json())
 
     def delete_all_my_pdfs_from_data(self):
         res = requests.get(f"{BASE_URL}/user/pdf", auth=self.auth)
@@ -76,12 +77,12 @@ class UserToolsManager:
             return
         res = requests.post(f"{BASE_URL}/user/pdf/delete", json={"filenames": filenames}, auth=self.auth)
         log_client_event(self.username, "user_delete_all_pdfs_data", "success" if res.status_code == 200 else "fail", f"filenames={filenames}, response={res.text}", is_admin=False)
-        print(res.json())
+        pprint.pprint(res.json())
 
     def list_ingested_pdfs(self):
         res = requests.get(f"{BASE_URL}/user/ingested_pdfs", auth=self.auth)
         log_client_event(self.username, "user_list_ingested_pdfs", "success" if res.status_code == 200 else "fail", f"response={res.text}", is_admin=False)
-        print(res.json())
+        pprint.pprint(res.json())
 
     def main_menu(self):
         while True:
