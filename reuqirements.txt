@@ -1,0 +1,30 @@
+## Backend Requirements ##
+fastapi
+uvicorn
+openai
+langchain
+langchain_text_splitters
+chromadb
+pypdf
+python-dotenv
+tiktoken
+langchain-community
+langchain-openai
+langchain_chroma
+python-multipart
+pydantic
+# pytest
+# pytest-asyncio
+
+## Frontend Requirements ##
+streamlit
+gradio
+requests
+pandas
+
+## Test Requirements ##
+requests
+reportlab
+locust
+playwright
+logging

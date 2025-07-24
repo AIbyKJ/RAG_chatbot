@@ -166,3 +166,4 @@ Thumbs.db
 admin_client.log
 user_client.log
 server_events.log 
+rag-venv
