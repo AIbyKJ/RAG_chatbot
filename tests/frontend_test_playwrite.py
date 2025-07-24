@@ -9,7 +9,7 @@ from reportlab.lib.pagesizes import letter
 
 # --- Configuration ---
 STREAMLIT_URL = os.getenv("FRONTEND_URL", "http://localhost:8501")
-NUM_USERS = 1
+NUM_USERS = 20
 ACTIONS_PER_MINUTE = 5 # Each "action" is a full workflow (chat, upload, or ingest)
 TOTAL_DURATION_MINUTES = 2 # How long the test should run
 PDF_UPLOAD_DIR = Path("temp_test_pdfs")
@@ -162,7 +162,7 @@ async def simulate_user_session(playwright: Playwright, user_id: int):
     page = None
     
     try:
-        browser = await playwright.chromium.launch(headless=True)
+        browser = await playwright.chromium.launch(headless=False)
         page = await browser.new_page()
         logger.info("Browser launched.")
 
