@@ -129,17 +129,13 @@ async def perform_ingestion(page: Page, logger: logging.LoggerAdapter, pdf_name:
 
     await page.get_by_role("tab", name="Ingest My PDFs").click()
     
-    # Wait for the tab content to be ready
     ingest_header = page.get_by_role("heading", name="Ingest Your PDFs into the VectorDB")
     await expect(ingest_header).to_be_visible(timeout=15000)
     
     logger.info(f"Attempting to ingest file: {pdf_name}")
     
-    # --- FINAL FIX: Scope the selectbox locator to the visible tab panel ---
-    # 1. Find the currently visible tab panel.
     visible_tab_panel = page.locator('div[role="tabpanel"]:not([hidden])')
     
-    # 2. Find the selectbox *only within that visible panel*.
     selectbox = visible_tab_panel.get_by_test_id("stSelectbox")
     await selectbox.click()
     
@@ -162,7 +158,7 @@ async def simulate_user_session(playwright: Playwright, user_id: int):
     page = None
     
     try:
-        browser = await playwright.chromium.launch(headless=False)
+        browser = await playwright.chromium.launch(headless=True)
         page = await browser.new_page()
         logger.info("Browser launched.")
 
