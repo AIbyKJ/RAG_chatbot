@@ -45,7 +45,7 @@ Ensure the backend and frontend services are running (e.g., via `docker-compose 
 #### Step 3: Run the Test Locally
 From the `tests/` directory, execute the standalone test script.
 
-`python standalone_ui_test.py`
+`python frontend_test_playwrite.py`
 
 The script will launch 20 browsers and run for the duration specified in the configuration. You will see detailed logs printed to your console. If any user session fails, a screenshot named `failure_user_X.png` will be saved for debugging.
 
