@@ -27,4 +27,3 @@ requests
 reportlab
 locust
 playwright
-logging
