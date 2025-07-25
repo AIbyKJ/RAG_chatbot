@@ -15,10 +15,10 @@ TOTAL_DURATION_MINUTES = 2 # How long the test should run
 PDF_UPLOAD_DIR = Path("temp_test_pdfs")
 
 # --- Logging Setup ---
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - [User-%(user_id)s] - %(message)s',
-)
+# logging.basicConfig(
+#     level=logging.INFO,
+#     format='%(asctime)s - %(levelname)s - [User-%(user_id)s] - %(message)s',
+# )
 
 # --- Helper Functions ---
 def get_user_credentials(user_id: int):
@@ -37,7 +37,7 @@ def create_dummy_pdf(user_id: int, request_num: int) -> Path:
 
 # --- Playwright Automation Functions ---
 
-async def perform_login_and_navigate(page: Page, username: str, password: str, logger: logging.LoggerAdapter):
+async def perform_login_and_navigate(page: Page, username: str, password: str):
     """Handles the login flow and navigates to the main user dashboard."""
     await page.goto(STREAMLIT_URL)
     
@@ -74,7 +74,7 @@ async def perform_login_and_navigate(page: Page, username: str, password: str, l
     logger.info("Successfully navigated to User Dashboard and sidebar is ready.")
 
 
-async def perform_chat(page: Page, logger: logging.LoggerAdapter, request_num: int):
+async def perform_chat(page: Page, request_num: int):
     """Simulates a single chat interaction."""
     logger.info("Navigating to Chat menu...")
     await page.get_by_role("radiogroup", name="User Menu").get_by_text("Chat").click()
@@ -96,7 +96,7 @@ async def perform_chat(page: Page, logger: logging.LoggerAdapter, request_num: i
     await expect(assistant_response).not_to_be_empty(timeout=30000)
     logger.info(f"Chat request #{request_num} completed.")
 
-async def perform_upload(page: Page, logger: logging.LoggerAdapter, user_id: int, request_num: int) -> str:
+async def perform_upload(page: Page, user_id: int, request_num: int) -> str:
     """Simulates uploading a single PDF file."""
     logger.info("Navigating to Data Management menu...")
     await page.get_by_role("radiogroup", name="User Menu").get_by_text("Data Management").click()
@@ -122,7 +122,7 @@ async def perform_upload(page: Page, logger: logging.LoggerAdapter, user_id: int
     
     return pdf_path.name
 
-async def perform_ingestion(page: Page, logger: logging.LoggerAdapter, pdf_name: str):
+async def perform_ingestion(page: Page, pdf_name: str):
     """Simulates ingesting the most recently uploaded PDF."""
     logger.info("Navigating to VectorDB Management menu...")
     await page.get_by_role("radiogroup", name="User Menu").get_by_text("VectorDB Management").click()
@@ -156,7 +156,7 @@ async def simulate_user_session(playwright: Playwright, user_id: int):
     """
     Simulates a single user's entire session, performing a variety of tasks.
     """
-    logger = logging.LoggerAdapter(logging.getLogger(), {'user_id': user_id})
+    # logger = logging.LoggerAdapter(logging.getLogger(), {'user_id': user_id})
     username, password = get_user_credentials(user_id)
     browser = None
     page = None
