@@ -14,11 +14,29 @@ ACTIONS_PER_MINUTE = 5 # Each "action" is a full workflow (chat, upload, or inge
 TOTAL_DURATION_MINUTES = 2 # How long the test should run
 PDF_UPLOAD_DIR = Path("temp_test_pdfs")
 
-# --- Logging Setup ---
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - [User-%(user_id)s] - %(message)s',
-)
+# --- Robust Logging Setup ---
+# This custom formatter handles log records that may or may not have a user_id.
+class CustomFormatter(logging.Formatter):
+    """A custom formatter that adds a default for user_id."""
+    def format(self, record):
+        # Set a default value for user_id if it's not in the record
+        record.user_id = getattr(record, 'user_id', 'System')
+        return super().format(record)
+
+# Get the root logger
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+# Create a handler and set the custom formatter
+handler = logging.StreamHandler()
+formatter = CustomFormatter('%(asctime)s - %(levelname)s - [User-%(user_id)s] - %(message)s')
+handler.setFormatter(formatter)
+
+# Clear existing handlers (if any) and add our new one
+if logger.hasHandlers():
+    logger.handlers.clear()
+logger.addHandler(handler)
+
 
 # --- Helper Functions ---
 def get_user_credentials(user_id: int):
@@ -152,7 +170,9 @@ async def simulate_user_session(playwright: Playwright, user_id: int):
     """
     Simulates a single user's entire session, performing a variety of tasks.
     """
-    logger = logging.LoggerAdapter(logging.getLogger(), {'user_id': user_id})
+    # Create an adapter to inject the user_id into log records for this session
+    log_adapter = logging.LoggerAdapter(logging.getLogger(), {'user_id': user_id})
+    
     username, password = get_user_credentials(user_id)
     browser = None
     page = None
@@ -160,9 +180,9 @@ async def simulate_user_session(playwright: Playwright, user_id: int):
     try:
         browser = await playwright.chromium.launch(headless=True)
         page = await browser.new_page()
-        logger.info("Browser launched.")
+        log_adapter.info("Browser launched.")
 
-        await perform_login_and_navigate(page, username, password, logger)
+        await perform_login_and_navigate(page, username, password, log_adapter)
         
         total_actions = ACTIONS_PER_MINUTE * TOTAL_DURATION_MINUTES
         wait_time_between_actions = 60.0 / ACTIONS_PER_MINUTE
@@ -172,45 +192,46 @@ async def simulate_user_session(playwright: Playwright, user_id: int):
             action = random.choice(["chat", "upload", "ingest"])
             
             if action == "upload":
-                last_uploaded_pdf = await perform_upload(page, logger, user_id, i + 1)
+                last_uploaded_pdf = await perform_upload(page, log_adapter, user_id, i + 1)
             elif action == "ingest" and last_uploaded_pdf:
-                await perform_ingestion(page, logger, last_uploaded_pdf)
+                await perform_ingestion(page, log_adapter, last_uploaded_pdf)
             else:
-                await perform_chat(page, logger, i + 1)
+                await perform_chat(page, log_adapter, i + 1)
             
-            logger.info(f"Action #{i+1} completed. Waiting for next action...")
+            log_adapter.info(f"Action #{i+1} completed. Waiting for next action...")
             await asyncio.sleep(wait_time_between_actions)
 
     except Exception as e:
-        logger.error(f"An error occurred during the session: {e}")
+        log_adapter.error(f"An error occurred during the session: {e}")
         if page:
             await page.screenshot(path=f"failure_user_{user_id}.png")
     finally:
         if browser:
             await browser.close()
-            logger.info("Browser closed.")
+            log_adapter.info("Browser closed.")
 
 async def main():
     """
     The main function that launches all concurrent user simulations.
     """
-    print(f"--- Starting UI Load Test ---")
-    print(f"Simulating {NUM_USERS} concurrent users.")
-    print(f"Targeting {ACTIONS_PER_MINUTE} full actions per minute per user.")
-    print(f"Test will run for {TOTAL_DURATION_MINUTES} minute(s).")
-    print(f"Target URL: {STREAMLIT_URL}")
-    print("-----------------------------")
+    # Use the root logger for general messages
+    logging.info(f"--- Starting UI Load Test ---")
+    logging.info(f"Simulating {NUM_USERS} concurrent users.")
+    logging.info(f"Targeting {ACTIONS_PER_MINUTE} full actions per minute per user.")
+    logging.info(f"Test will run for {TOTAL_DURATION_MINUTES} minute(s).")
+    logging.info(f"Target URL: {STREAMLIT_URL}")
+    logging.info("-----------------------------")
 
     async with async_playwright() as playwright:
         tasks = [simulate_user_session(playwright, i + 1) for i in range(NUM_USERS)]
         await asyncio.gather(*tasks)
     
-    print("--- UI Load Test Finished ---")
+    logging.info("--- UI Load Test Finished ---")
     if PDF_UPLOAD_DIR.exists():
         for f in PDF_UPLOAD_DIR.glob("*.pdf"):
             f.unlink()
         PDF_UPLOAD_DIR.rmdir()
-        print("Cleaned up temporary PDF files.")
+        logging.info("Cleaned up temporary PDF files.")
 
 if __name__ == "__main__":
     if os.name == 'nt':
