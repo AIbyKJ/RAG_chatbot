@@ -6,8 +6,8 @@ from reportlab.lib.pagesizes import letter
 
 # --- Configuration ---
 # This should match the admin credentials for your running backend application
-ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "adminpassword" # Use the password from your docker-compose.yml
+ADMIN_USERNAME = "admin"         # Use the admin user name from .env file on backend folder
+ADMIN_PASSWORD = "adminpassword" # Use the admin password from .env file on backend folder
 BASE_URL = "http://127.0.0.1:8000"
 NUM_USERS_TO_CREATE = 20
 NUM_PDFS_TO_CREATE = 10
