@@ -178,7 +178,7 @@ async def simulate_user_session(playwright: Playwright, user_id: int):
     page = None
     
     try:
-        browser = await playwright.chromium.launch(headless=True)
+        browser = await playwright.chromium.launch(headless=False)
         page = await browser.new_page()
         log_adapter.info("Browser launched.")
 
@@ -234,6 +234,7 @@ async def main():
         logging.info("Cleaned up temporary PDF files.")
 
 if __name__ == "__main__":
-    if os.name == 'nt':
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    # if os.name == 'nt':
+    #     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    
     asyncio.run(main())

@@ -16,35 +16,28 @@ logging.basicConfig(
 # --- Configuration ---
 BASE_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
 
-# --- API Helper Functions with Corrected Auth Handling and Robust JSON Parsing ---
+# --- API Helper Functions ---
 def get_api_data(endpoint: str, auth_state: Dict[str, Any], key: str) -> list:
     """
     Generic function to fetch list data from an API endpoint with logging.
-    This function is now robust and can handle responses that are either a direct
-    JSON array (list) or a JSON object (dict) containing the data under a specific key.
+    Handles responses that are a direct list or a dictionary containing the data.
     """
     logging.info(f"Attempting to GET data from endpoint: {endpoint}")
     auth_object = auth_state.get('auth') if auth_state else None
     if not auth_object:
-        logging.warning(f"API call to {endpoint} failed: No auth object provided in auth_state.")
+        logging.warning(f"API call to {endpoint} failed: No auth object provided.")
         return []
     try:
         res = requests.get(f"{BASE_URL}/{endpoint}", auth=auth_object, timeout=5)
         if res.status_code == 200:
             response_json = res.json()
-            
-            # --- FIX: Handle both list and dict responses ---
             if isinstance(response_json, dict):
-                # Standard case: data is inside a dictionary with a key.
                 data = response_json.get(key, [])
             elif isinstance(response_json, list):
-                # Special case (like /admin/users): response is a direct list.
                 data = response_json
             else:
                 logging.error(f"Unexpected JSON response type from {endpoint}: {type(response_json)}")
                 data = []
-            # --- END OF FIX ---
-            
             logging.info(f"Successfully fetched {len(data)} items from {endpoint}.")
             return data
         else:
@@ -57,7 +50,6 @@ def get_api_data(endpoint: str, auth_state: Dict[str, Any], key: str) -> list:
         return []
 
 def get_all_users(auth_state: Dict[str, Any]) -> List[str]:
-    # The key "users" is now effectively ignored by get_api_data for this endpoint, but doesn't harm anything.
     users_data = get_api_data("admin/users", auth_state, "users")
     return [u['username'] for u in users_data]
 
@@ -71,7 +63,7 @@ def get_my_pdfs(auth_state: Dict[str, Any]) -> List[str]:
 
 def get_my_ingested_pdfs(auth_state: Dict[str, Any]) -> List[str]:
     pdfs_data = get_api_data("user/ingested_pdfs", auth_state, "ingested_pdfs")
-    return [pdf['filename'] for pdf in pdfs_data]
+    return [pdf['filename'] for pdf in pdfs_data] if pdfs_data else []
 
 # --- Main Application Logic ---
 def login(role: str, username: str, password: str):
@@ -106,14 +98,14 @@ def logout():
     gr.Info("You have been logged out.")
     return None, gr.update(visible=True), gr.update(visible=False), gr.update(visible=False), []
 
-def handle_api_post(endpoint: str, auth_state: Dict[str, Any], json_data: dict = None, files_data: list = None, params: dict = None):
+def handle_api_post(endpoint: str, auth_state: Dict[str, Any], json_data: dict = None, files_data: list = None, data_payload: dict = None, params: dict = None):
     """Handles POST requests with logging and provides user feedback."""
     logging.info(f"POST request to: {endpoint} with data: {json_data or 'files'}")
     auth_object = auth_state.get('auth') if auth_state else None
     if not auth_object:
         return gr.Error("Authentication is missing. Please log in again.")
     try:
-        res = requests.post(f"{BASE_URL}/{endpoint}", auth=auth_object, json=json_data, files=files_data, params=params, timeout=15)
+        res = requests.post(f"{BASE_URL}/{endpoint}", auth=auth_object, json=json_data, files=files_data, data=data_payload, params=params, timeout=15)
         if res.status_code == 200:
             response_data = res.json()
             gr.Info(f"Success: {response_data.get('detail') or response_data.get('message') or response_data.get('uploaded')}")
@@ -178,13 +170,13 @@ def upload_files_action(auth_state: dict, files: list, is_public: str, role: str
     if not files:
         gr.Warning("Please select at least one file to upload.")
         return
-    logging.info(f"'{role}' is uploading {len(files)} files.")
+    logging.info(f"'{role}' is uploading {len(files)} files. Public: {is_public}")
     files_to_send = [("files", (os.path.basename(f.name), open(f.name, "rb"), "application/pdf")) for f in files]
-    data = {"is_public": 1 if is_public == "Yes" else 0}
-    handle_api_post(f"{role}/pdf/upload", auth_state, files_data=files_to_send, params=data)
+    data_payload = {"is_public": 1 if is_public == "Yes" else 0}
+    handle_api_post(f"{role}/pdf/upload", auth_state, files_data=files_to_send, data_payload=data_payload)
 
 # --- Gradio UI Definition ---
-with gr.Blocks(title="RAG Chatbot Portal") as demo:
+with gr.Blocks(theme=gr.themes.Soft(), title="RAG Chatbot Portal") as demo:
     auth_state = gr.State()
 
     gr.Markdown("# RAG Chatbot Portal")
@@ -227,10 +219,15 @@ with gr.Blocks(title="RAG Chatbot Portal") as demo:
                 admin_chat_history_display = gr.Textbox(label="Chat History", lines=10, interactive=False)
             with gr.Tab("Data Management"):
                 with gr.Tabs():
-                    with gr.Tab("Upload PDFs"):
+                    with gr.Tab("Upload PDFs (Files)"):
                         admin_upload_files = gr.File(label="Select PDF files", file_count="multiple", file_types=[".pdf"])
                         admin_upload_is_public = gr.Radio(["No", "Yes"], label="Make these PDFs public?", value="No")
                         admin_upload_btn = gr.Button("Upload PDF(s)", variant="primary")
+                    with gr.Tab("Upload from Folder"):
+                        gr.Markdown("Use this to upload all PDFs from a single folder. Navigate to the folder and select all files you wish to upload (e.g., using Ctrl+A).")
+                        admin_upload_folder_files = gr.File(label="Select all PDF files from a folder", file_count="multiple", file_types=[".pdf"])
+                        admin_upload_folder_is_public = gr.Radio(["No", "Yes"], label="Make these PDFs public?", value="No")
+                        admin_upload_folder_btn = gr.Button("Upload Folder Contents", variant="primary")
                     with gr.Tab("List & Delete PDFs"):
                         admin_pdfs_df = gr.Dataframe(interactive=False)
                         admin_list_pdfs_btn = gr.Button("Refresh PDF List")
@@ -278,10 +275,15 @@ with gr.Blocks(title="RAG Chatbot Portal") as demo:
                 user_clear_chat_btn = gr.Button("Clear Chat")
             with gr.Tab("Data Management"):
                 with gr.Tabs():
-                    with gr.Tab("Upload PDFs"):
+                    with gr.Tab("Upload PDFs (Files)"):
                         user_upload_files = gr.File(label="Select PDF files", file_count="multiple", file_types=[".pdf"])
                         user_upload_is_public = gr.Radio(["No", "Yes"], label="Make these PDFs public?", value="No")
                         user_upload_btn = gr.Button("Upload", variant="primary")
+                    with gr.Tab("Upload from Folder"):
+                        gr.Markdown("Use this to upload all PDFs from a single folder. Navigate to the folder and select all files you wish to upload (e.g., using Ctrl+A).")
+                        user_upload_folder_files = gr.File(label="Select all PDF files from a folder", file_count="multiple", file_types=[".pdf"])
+                        user_upload_folder_is_public = gr.Radio(["No", "Yes"], label="Make these PDFs public?", value="No")
+                        user_upload_folder_btn = gr.Button("Upload Folder Contents", variant="primary")
                     with gr.Tab("List & Delete My PDFs"):
                         user_pdfs_df = gr.Dataframe(interactive=False)
                         user_list_pdfs_btn = gr.Button("Refresh My PDF List")
@@ -314,20 +316,38 @@ with gr.Blocks(title="RAG Chatbot Portal") as demo:
     logout_btn_admin.click(logout, None, [auth_state, login_view, admin_view, user_view, user_chatbot])
     logout_btn_user.click(logout, None, [auth_state, login_view, admin_view, user_view, user_chatbot])
 
-    # Dynamic Dropdown Updates
-    def update_admin_dd(auth_st):
-        logging.info("Updating admin dropdowns.")
+    # --- Refresh Functions ---
+    def refresh_admin_view(auth_st):
+        """Refreshes all admin dataframes and dropdowns."""
+        logging.info("Refreshing admin view.")
         users = get_all_users(auth_st)
         pdfs = get_all_pdfs(auth_st)
-        return gr.update(choices=users), gr.update(choices=users), gr.update(choices=users), gr.update(choices=pdfs), gr.update(choices=pdfs), gr.update(choices=users), gr.update(choices=pdfs), gr.update(choices=users), gr.update(choices=users)
-    def update_user_dd(auth_st):
-        logging.info("Updating user dropdowns.")
+        # FIX: Use the correct endpoint for listing all ingested PDFs for the admin
+        sources = get_api_data("admin/vectordb/pdf", auth_st, "sources")
+        
+        return (
+            list_data("admin/pdf", auth_st, "pdfs"),
+            pd.DataFrame(sources) if sources else pd.DataFrame(),
+            gr.update(choices=users), gr.update(choices=users), gr.update(choices=users),
+            gr.update(choices=pdfs), gr.update(choices=pdfs), gr.update(choices=users),
+            gr.update(choices=pdfs), gr.update(choices=users), gr.update(choices=users)
+        )
+
+    def refresh_user_view(auth_st):
+        """Refreshes all user dataframes and dropdowns."""
+        logging.info("Refreshing user view.")
         pdfs = get_my_pdfs(auth_st)
         ingested_pdfs = get_my_ingested_pdfs(auth_st)
-        return gr.update(choices=pdfs), gr.update(choices=pdfs), gr.update(choices=ingested_pdfs)
-    
-    admin_tabs.select(update_admin_dd, auth_state, [admin_delete_user_select, admin_reset_pw_select, admin_chat_user_select, admin_delete_files_select, admin_ingest_pdf_select, admin_ingest_user_select, admin_remove_pdf_select, admin_remove_user_data_select, admin_clear_user_mem_select])
-    user_tabs.select(update_user_dd, auth_state, [user_delete_storage_select, user_ingest_select, user_remove_one_data_select])
+        
+        return (
+            list_data("user/pdf", auth_st, "pdfs"),
+            list_data("user/ingested_pdfs", auth_st, "ingested_pdfs"),
+            gr.update(choices=pdfs), gr.update(choices=pdfs), gr.update(choices=ingested_pdfs)
+        )
+
+    # Dynamic Dropdown/Data Updates on Tab Select
+    admin_tabs.select(refresh_admin_view, auth_state, [admin_pdfs_df, admin_ingested_df, admin_delete_user_select, admin_reset_pw_select, admin_chat_user_select, admin_delete_files_select, admin_ingest_pdf_select, admin_ingest_user_select, admin_remove_pdf_select, admin_remove_user_data_select, admin_clear_user_mem_select])
+    user_tabs.select(refresh_user_view, auth_state, [user_pdfs_df, user_ingested_df, user_delete_storage_select, user_ingest_select, user_remove_one_data_select])
     admin_ingest_type.change(lambda x: gr.update(visible=x=="Private"), admin_ingest_type, admin_ingest_user_select)
 
     # Admin Actions
@@ -336,14 +356,17 @@ with gr.Blocks(title="RAG Chatbot Portal") as demo:
     admin_delete_user_btn.click(lambda auth, u: handle_api_delete(f"admin/users/{u}", auth), [auth_state, admin_delete_user_select], None).then(lambda auth: list_data("admin/users", auth, "users"), auth_state, admin_users_df)
     admin_reset_pw_btn.click(lambda auth, u, p: handle_api_post(f"admin/users/{u}/reset_password", auth, json_data={"password":p}), [auth_state, admin_reset_pw_select, admin_reset_pw_new_pw], None)
     admin_view_chat_btn.click(lambda auth, u: "\n".join(get_api_data(f"admin/chat/history/{u}", auth, "history")), [auth_state, admin_chat_user_select], admin_chat_history_display)
-    admin_upload_btn.click(lambda auth, f, p: upload_files_action(auth, f, p, "admin"), [auth_state, admin_upload_files, admin_upload_is_public], None).then(lambda auth: list_data("admin/pdf", auth, "pdfs"), auth_state, admin_pdfs_df)
+    
+    admin_upload_btn.click(lambda auth, f, p: upload_files_action(auth, f, p, "admin"), [auth_state, admin_upload_files, admin_upload_is_public], None).then(refresh_admin_view, auth_state, [admin_pdfs_df, admin_ingested_df, admin_delete_user_select, admin_reset_pw_select, admin_chat_user_select, admin_delete_files_select, admin_ingest_pdf_select, admin_ingest_user_select, admin_remove_pdf_select, admin_remove_user_data_select, admin_clear_user_mem_select]).then(lambda: gr.update(value=None), None, admin_upload_files)
+    admin_upload_folder_btn.click(lambda auth, f, p: upload_files_action(auth, f, p, "admin"), [auth_state, admin_upload_folder_files, admin_upload_folder_is_public], None).then(refresh_admin_view, auth_state, [admin_pdfs_df, admin_ingested_df, admin_delete_user_select, admin_reset_pw_select, admin_chat_user_select, admin_delete_files_select, admin_ingest_pdf_select, admin_ingest_user_select, admin_remove_pdf_select, admin_remove_user_data_select, admin_clear_user_mem_select]).then(lambda: gr.update(value=None), None, admin_upload_folder_files)
+    
     admin_list_pdfs_btn.click(lambda auth: list_data("admin/pdf", auth, "pdfs"), auth_state, admin_pdfs_df)
-    admin_delete_files_btn.click(lambda auth, f: handle_api_post("admin/pdf/delete", auth, json_data={"filenames": f}), [auth_state, admin_delete_files_select], None).then(lambda auth: list_data("admin/pdf", auth, "pdfs"), auth_state, admin_pdfs_df)
-    admin_delete_public_btn.click(lambda auth: handle_api_post("admin/pdf/delete_public", auth), auth_state, None).then(lambda auth: list_data("admin/pdf", auth, "pdfs"), auth_state, admin_pdfs_df)
-    admin_ingest_all_public_btn.click(lambda auth: handle_api_post("admin/vectordb/ingest/all", auth), auth_state, None)
-    admin_ingest_specific_btn.click(lambda auth, f, t, u: handle_api_post(f"admin/vectordb/ingest/{'private' if t=='Private' else 'public'}/{f}", auth, params={"user_id": u} if t=='Private' else None), [auth_state, admin_ingest_pdf_select, admin_ingest_type, admin_ingest_user_select], None)
-    admin_remove_pdf_btn.click(lambda auth, f: handle_api_delete(f"admin/vectordb/pdf/{f}", auth), [auth_state, admin_remove_pdf_select], None)
-    admin_remove_user_data_btn.click(lambda auth, u: handle_api_delete(f"admin/vectordb/pdf/user/{u}", auth), [auth_state, admin_remove_user_data_select], None)
+    admin_delete_files_btn.click(lambda auth, f: handle_api_post("admin/pdf/delete", auth, json_data={"filenames": f}), [auth_state, admin_delete_files_select], None).then(refresh_admin_view, auth_state, [admin_pdfs_df, admin_ingested_df, admin_delete_user_select, admin_reset_pw_select, admin_chat_user_select, admin_delete_files_select, admin_ingest_pdf_select, admin_ingest_user_select, admin_remove_pdf_select, admin_remove_user_data_select, admin_clear_user_mem_select])
+    admin_delete_public_btn.click(lambda auth: handle_api_post("admin/pdf/delete_public", auth), auth_state, None).then(refresh_admin_view, auth_state, [admin_pdfs_df, admin_ingested_df, admin_delete_user_select, admin_reset_pw_select, admin_chat_user_select, admin_delete_files_select, admin_ingest_pdf_select, admin_ingest_user_select, admin_remove_pdf_select, admin_remove_user_data_select, admin_clear_user_mem_select])
+    admin_ingest_all_public_btn.click(lambda auth: handle_api_post("admin/vectordb/ingest/all", auth), auth_state, None).then(refresh_admin_view, auth_state, [admin_pdfs_df, admin_ingested_df, admin_delete_user_select, admin_reset_pw_select, admin_chat_user_select, admin_delete_files_select, admin_ingest_pdf_select, admin_ingest_user_select, admin_remove_pdf_select, admin_remove_user_data_select, admin_clear_user_mem_select])
+    admin_ingest_specific_btn.click(lambda auth, f, t, u: handle_api_post(f"admin/vectordb/ingest/{'private' if t=='Private' else 'public'}/{f}", auth, params={"user_id": u} if t=='Private' else None), [auth_state, admin_ingest_pdf_select, admin_ingest_type, admin_ingest_user_select], None).then(refresh_admin_view, auth_state, [admin_pdfs_df, admin_ingested_df, admin_delete_user_select, admin_reset_pw_select, admin_chat_user_select, admin_delete_files_select, admin_ingest_pdf_select, admin_ingest_user_select, admin_remove_pdf_select, admin_remove_user_data_select, admin_clear_user_mem_select])
+    admin_remove_pdf_btn.click(lambda auth, f: handle_api_delete(f"admin/vectordb/pdf/{f}", auth), [auth_state, admin_remove_pdf_select], None).then(refresh_admin_view, auth_state, [admin_pdfs_df, admin_ingested_df, admin_delete_user_select, admin_reset_pw_select, admin_chat_user_select, admin_delete_files_select, admin_ingest_pdf_select, admin_ingest_user_select, admin_remove_pdf_select, admin_remove_user_data_select, admin_clear_user_mem_select])
+    admin_remove_user_data_btn.click(lambda auth, u: handle_api_delete(f"admin/vectordb/pdf/user/{u}", auth), [auth_state, admin_remove_user_data_select], None).then(refresh_admin_view, auth_state, [admin_pdfs_df, admin_ingested_df, admin_delete_user_select, admin_reset_pw_select, admin_chat_user_select, admin_delete_files_select, admin_ingest_pdf_select, admin_ingest_user_select, admin_remove_pdf_select, admin_remove_user_data_select, admin_clear_user_mem_select])
     admin_list_ingested_btn.click(lambda auth: list_data("admin/vectordb/pdf", auth, "sources"), auth_state, admin_ingested_df)
     admin_clear_user_mem_btn.click(lambda auth, u: handle_api_delete(f"admin/vectordb/memory/{u}", auth), [auth_state, admin_clear_user_mem_select], None)
     admin_clear_all_mem_btn.click(lambda auth: handle_api_delete("admin/vectordb/memory", auth), auth_state, None)
@@ -351,14 +374,17 @@ with gr.Blocks(title="RAG Chatbot Portal") as demo:
     # User Actions
     user_msg_box.submit(user_chat, [auth_state, user_msg_box, user_chatbot], [user_msg_box, user_chatbot])
     user_clear_chat_btn.click(lambda: ([], None), None, [user_chatbot, user_msg_box], queue=False)
-    user_upload_btn.click(lambda auth, f, p: upload_files_action(auth, f, p, "user"), [auth_state, user_upload_files, user_upload_is_public], None).then(lambda auth: list_data("user/pdf", auth, "pdfs"), auth_state, user_pdfs_df)
+
+    user_upload_btn.click(lambda auth, f, p: upload_files_action(auth, f, p, "user"), [auth_state, user_upload_files, user_upload_is_public], None).then(refresh_user_view, auth_state, [user_pdfs_df, user_ingested_df, user_delete_storage_select, user_ingest_select, user_remove_one_data_select]).then(lambda: gr.update(value=None), None, user_upload_files)
+    user_upload_folder_btn.click(lambda auth, f, p: upload_files_action(auth, f, p, "user"), [auth_state, user_upload_folder_files, user_upload_folder_is_public], None).then(refresh_user_view, auth_state, [user_pdfs_df, user_ingested_df, user_delete_storage_select, user_ingest_select, user_remove_one_data_select]).then(lambda: gr.update(value=None), None, user_upload_folder_files)
+    
     user_list_pdfs_btn.click(lambda auth: list_data("user/pdf", auth, "pdfs"), auth_state, user_pdfs_df)
-    user_delete_storage_btn.click(lambda auth, f: handle_api_post("user/pdf/delete", auth, json_data={"filenames": f}), [auth_state, user_delete_storage_select], None).then(lambda auth: list_data("user/pdf", auth, "pdfs"), auth_state, user_pdfs_df)
-    user_ingest_all_btn.click(lambda auth: handle_api_post("user/vectordb/ingest/all", auth), auth_state, None)
-    user_ingest_one_btn.click(lambda auth, f: handle_api_post(f"user/vectordb/ingest/one/{f}", auth), [auth_state, user_ingest_select], None)
+    user_delete_storage_btn.click(lambda auth, f: handle_api_post("user/pdf/delete", auth, json_data={"filenames": f}), [auth_state, user_delete_storage_select], None).then(refresh_user_view, auth_state, [user_pdfs_df, user_ingested_df, user_delete_storage_select, user_ingest_select, user_remove_one_data_select])
+    user_ingest_all_btn.click(lambda auth: handle_api_post("user/vectordb/ingest/all", auth), auth_state, None).then(refresh_user_view, auth_state, [user_pdfs_df, user_ingested_df, user_delete_storage_select, user_ingest_select, user_remove_one_data_select])
+    user_ingest_one_btn.click(lambda auth, f: handle_api_post(f"user/vectordb/ingest/one/{f}", auth), [auth_state, user_ingest_select], None).then(refresh_user_view, auth_state, [user_pdfs_df, user_ingested_df, user_delete_storage_select, user_ingest_select, user_remove_one_data_select])
     user_list_ingested_btn.click(lambda auth: list_data("user/ingested_pdfs", auth, "ingested_pdfs"), auth_state, user_ingested_df)
-    user_remove_all_data_btn.click(lambda auth: handle_api_delete("user/vectordb/pdf/all", auth), auth_state, None)
-    user_remove_one_data_btn.click(lambda auth, f: handle_api_delete(f"user/vectordb/pdf/one/{f}", auth), [auth_state, user_remove_one_data_select], None)
+    user_remove_all_data_btn.click(lambda auth: handle_api_delete("user/vectordb/pdf/all", auth), auth_state, None).then(refresh_user_view, auth_state, [user_pdfs_df, user_ingested_df, user_delete_storage_select, user_ingest_select, user_remove_one_data_select])
+    user_remove_one_data_btn.click(lambda auth, f: handle_api_delete(f"user/vectordb/pdf/one/{f}", auth), [auth_state, user_remove_one_data_select], None).then(refresh_user_view, auth_state, [user_pdfs_df, user_ingested_df, user_delete_storage_select, user_ingest_select, user_remove_one_data_select])
     user_clear_memory_btn.click(lambda auth: handle_api_delete("user/vectordb/memory", auth), auth_state, None).then(lambda: [], None, user_chatbot)
 
 if __name__ == "__main__":
