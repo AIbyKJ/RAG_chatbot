@@ -141,7 +141,7 @@ elif menu == "Chat Management":
 
 # --- Data Management ---
 elif menu == "Data Management":
-    tabs = st.tabs(["Upload PDFs (Files)", "Upload from Folder", "List All PDFs", "Delete PDFs", "Delete ALL Public PDFs"])
+    tabs = st.tabs(["Upload PDFs (Files)", "List All PDFs", "Delete PDFs", "Delete ALL Public PDFs"])
 
     with tabs[0]: # Upload Files
         st.subheader("Upload PDF Documents")
@@ -161,26 +161,26 @@ elif menu == "Data Management":
                 except Exception as e:
                     st.error(f"Error: {e}")
 
-    with tabs[1]: # Upload from Folder
-        st.subheader("Upload All PDFs from a Folder")
-        st.info("Use this option to upload all PDF files from a local folder. In the file dialog, navigate to your folder and select all files (e.g., using Ctrl+A).")
-        with st.form("admin_folder_upload_form"):
-            folder_files = st.file_uploader("Select all PDF files from a folder", type=["pdf"], accept_multiple_files=True, key="admin_folder_uploader")
-            folder_is_public = st.radio("Make these PDFs public?", ("Yes", "No"), index=1, key="admin_folder_public_radio")
-            folder_submitted = st.form_submit_button("Upload Folder Contents")
-            if folder_submitted and folder_files:
-                files_to_send = [("files", (f.name, f.getvalue(), f.type)) for f in folder_files]
-                data = {"is_public": 1 if folder_is_public == "Yes" else 0}
-                try:
-                    res = requests.post(f"{BASE_URL}/admin/pdf/upload", files=files_to_send, data=data, auth=auth)
-                    if res.status_code == 200:
-                        st.success(f"Successfully uploaded: {', '.join(res.json().get('uploaded', []))}")
-                    else:
-                        st.error(f"Upload failed: {res.text}")
-                except Exception as e:
-                    st.error(f"Error: {e}")
+    # with tabs[1]: # Upload from Folder
+    #     st.subheader("Upload All PDFs from a Folder")
+    #     st.info("Use this option to upload all PDF files from a local folder. In the file dialog, navigate to your folder and select all files (e.g., using Ctrl+A).")
+    #     with st.form("admin_folder_upload_form"):
+    #         folder_files = st.file_uploader("Select all PDF files from a folder", type=["pdf"], accept_multiple_files=True, key="admin_folder_uploader")
+    #         folder_is_public = st.radio("Make these PDFs public?", ("Yes", "No"), index=1, key="admin_folder_public_radio")
+    #         folder_submitted = st.form_submit_button("Upload Folder Contents")
+    #         if folder_submitted and folder_files:
+    #             files_to_send = [("files", (f.name, f.getvalue(), f.type)) for f in folder_files]
+    #             data = {"is_public": 1 if folder_is_public == "Yes" else 0}
+    #             try:
+    #                 res = requests.post(f"{BASE_URL}/admin/pdf/upload", files=files_to_send, data=data, auth=auth)
+    #                 if res.status_code == 200:
+    #                     st.success(f"Successfully uploaded: {', '.join(res.json().get('uploaded', []))}")
+    #                 else:
+    #                     st.error(f"Upload failed: {res.text}")
+    #             except Exception as e:
+    #                 st.error(f"Error: {e}")
 
-    with tabs[2]: # List
+    with tabs[1]: # List
         st.subheader("List All Stored PDFs")
         if st.button("Refresh PDF List"):
             try:
@@ -192,7 +192,7 @@ elif menu == "Data Management":
             except Exception as e:
                 st.error(f"Error: {e}")
 
-    with tabs[3]: # Delete
+    with tabs[2]: # Delete
         st.subheader("Delete Specific PDFs from Storage")
         pdf_list = get_all_pdfs()
         files_to_delete = st.multiselect("Select PDFs to delete", pdf_list)
@@ -209,7 +209,7 @@ elif menu == "Data Management":
                 except Exception as e:
                     st.error(f"Error: {e}")
 
-    with tabs[4]: # Delete All Public
+    with tabs[3]: # Delete All Public
         st.subheader("Delete All Public PDFs")
         st.warning("This action is irreversible and will delete all PDFs marked as public from storage.")
         if st.button("Delete ALL Public PDFs", type="primary"):

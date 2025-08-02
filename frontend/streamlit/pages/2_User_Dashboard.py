@@ -26,9 +26,11 @@ def get_my_pdfs():
         return []
 
 def get_my_ingested_pdfs():
+    print("This func is called")
     try:
-        res = requests.get(f"{BASE_URL}/user/ingested_pdfs", auth=auth)
+        res = requests.get(f"{BASE_URL}/user/vectordb/pdf", auth=auth)
         if res.status_code == 200:
+            print(res.json().get("ingested_pdfs", []))
             return res.json().get("ingested_pdfs", [])
         return []
     except Exception:
@@ -83,7 +85,7 @@ if menu == "Chat":
 
 # --- Data Management ---
 elif menu == "Data Management":
-    tabs = st.tabs(["Upload PDFs (Files)", "Upload from Folder", "List & Delete My PDFs"])
+    tabs = st.tabs(["Upload PDFs (Files)", "List & Delete My PDFs"])
 
     with tabs[0]: # Upload Files
         st.subheader("Upload Your PDF Documents")
@@ -103,26 +105,26 @@ elif menu == "Data Management":
                 except Exception as e:
                     st.error(f"Error: {e}")
 
-    with tabs[1]: # Upload from Folder
-        st.subheader("Upload All PDFs from a Folder")
-        st.info("Use this option to upload all PDF files from a local folder. In the file dialog, navigate to your folder and select all files (e.g., using Ctrl+A).")
-        with st.form("user_folder_upload_form"):
-            folder_files = st.file_uploader("Select all PDF files from a folder", type=["pdf"], accept_multiple_files=True, key="user_folder_uploader")
-            folder_is_public = st.radio("Make these PDFs public?", ("No", "Yes"), index=0, key="user_folder_public_radio")
-            folder_submitted = st.form_submit_button("Upload Folder Contents")
-            if folder_submitted and folder_files:
-                files_to_send = [("files", (f.name, f.getvalue(), f.type)) for f in folder_files]
-                data = {"is_public": 1 if folder_is_public == "Yes" else 0}
-                try:
-                    res = requests.post(f"{BASE_URL}/user/pdf/upload", files=files_to_send, data=data, auth=auth)
-                    if res.status_code == 200:
-                        st.success(f"Successfully uploaded: {', '.join(res.json().get('uploaded', []))}")
-                    else:
-                        st.error(f"Upload failed: {res.text}")
-                except Exception as e:
-                    st.error(f"Error: {e}")
+    # with tabs[1]: # Upload from Folder
+    #     st.subheader("Upload All PDFs from a Folder")
+    #     st.info("Use this option to upload all PDF files from a local folder. In the file dialog, navigate to your folder and select all files (e.g., using Ctrl+A).")
+    #     with st.form("user_folder_upload_form"):
+    #         folder_files = st.file_uploader("Select all PDF files from a folder", type=["pdf"], accept_multiple_files=True, key="user_folder_uploader")
+    #         folder_is_public = st.radio("Make these PDFs public?", ("No", "Yes"), index=0, key="user_folder_public_radio")
+    #         folder_submitted = st.form_submit_button("Upload Folder Contents")
+    #         if folder_submitted and folder_files:
+    #             files_to_send = [("files", (f.name, f.getvalue(), f.type)) for f in folder_files]
+    #             data = {"is_public": 1 if folder_is_public == "Yes" else 0}
+    #             try:
+    #                 res = requests.post(f"{BASE_URL}/user/pdf/upload", files=files_to_send, data=data, auth=auth)
+    #                 if res.status_code == 200:
+    #                     st.success(f"Successfully uploaded: {', '.join(res.json().get('uploaded', []))}")
+    #                 else:
+    #                     st.error(f"Upload failed: {res.text}")
+    #             except Exception as e:
+    #                 st.error(f"Error: {e}")
 
-    with tabs[2]: # List & Delete
+    with tabs[1]: # List & Delete
         st.subheader("Manage Your Stored PDFs")
         my_pdfs = get_my_pdfs()
         if my_pdfs:
