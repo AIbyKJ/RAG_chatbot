@@ -186,11 +186,17 @@ elif menu == "VectorDB Management":
 
     with tabs[1]: # List Ingested
         st.subheader("List Your Ingested PDFs")
-        my_ingested_pdfs = get_my_ingested_pdfs()
-        if my_ingested_pdfs:
-            st.dataframe(pd.DataFrame(my_ingested_pdfs), use_container_width=True)
-        else:
-            st.info("You have not ingested any PDFs yet.")
+        if st.button("Refresh PDF List"):
+            try:
+                res = requests.get(f"{BASE_URL}/user/ingested_pdfs", auth=auth)
+                print(res.json())
+                if res.status_code == 200:
+                    st.success("PDF list refreshed.")
+                    st.dataframe(pd.DataFrame(res.json().get("ingested_pdfs", [])), use_container_width=True)
+                else:
+                    st.info("You have not ingested any PDFs yet.")
+            except Exception as e:
+                st.error(f"Error: {e}")
 
     with tabs[2]: # Remove Data
         st.subheader("Remove Your PDF Data from the VectorDB")
