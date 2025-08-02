@@ -189,7 +189,6 @@ elif menu == "VectorDB Management":
         if st.button("Refresh PDF List"):
             try:
                 res = requests.get(f"{BASE_URL}/user/ingested_pdfs", auth=auth)
-                print(res.json())
                 if res.status_code == 200:
                     st.success("PDF list refreshed.")
                     st.dataframe(pd.DataFrame(res.json().get("ingested_pdfs", [])), use_container_width=True)
