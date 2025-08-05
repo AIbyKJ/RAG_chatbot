@@ -29,7 +29,7 @@ def get_my_ingested_pdfs():
     try:
         res = requests.get(f"{BASE_URL}/user/vectordb/pdf", auth=auth)
         if res.status_code == 200:
-            return res.json().get("ingested_pdfs", [])
+            return res.json().get("sources", [])
         return []
     except Exception:
         return []
@@ -212,7 +212,7 @@ elif menu == "VectorDB Management":
                 
         st.markdown("---")
         st.markdown("#### Remove a Specific PDF's Data")
-        my_ingested_list = [pdf['filename'] for pdf in get_my_ingested_pdfs()]
+        my_ingested_list = [pdf['source'] for pdf in get_my_ingested_pdfs()]
         filename_to_remove = st.selectbox("Select PDF data to remove", my_ingested_list)
         if st.button("Remove Selected PDF Data"):
             if filename_to_remove:
