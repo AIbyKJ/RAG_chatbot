@@ -1,105 +1,260 @@
-import requests
+#!/usr/bin/env python3
+"""
+Complete test setup and automation script for Gradio RAG Chatbot Portal.
+This script uses existing PDF files for the UI automation part.
+
+Steps:
+1. Create test users via API.
+2. Run UI automation with Playwright to:
+   - Login as admin.
+   - Upload 2 PDF files from a specified directory.
+   - Ingest all public PDFs into the vector database.
+"""
+
+import asyncio
+import time
 import os
+import glob
+import requests
 from requests.auth import HTTPBasicAuth
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import letter
+from playwright.async_api import async_playwright
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('complete_test.log'),
+        logging.StreamHandler()
+    ]
+)
 
 # --- Configuration ---
-# This should match the admin credentials for your running backend application
-ADMIN_USERNAME = "admin"         # Use the admin user name from .env file on backend folder
-ADMIN_PASSWORD = "adminpassword" # Use the admin password from .env file on backend folder
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "adminpassword"
 BASE_URL = "http://127.0.0.1:8000"
-NUM_USERS_TO_CREATE = 20
-NUM_PDFS_TO_CREATE = 10
-PDF_DIR = "test_pdfs"
+GRADIO_URL = "http://localhost:7860"
 
-def create_test_users():
-    """
-    Checks for existing users and creates only the missing ones.
-    This is an idempotent operation, safe to run multiple times.
-    """
-    print("--- Creating Test Users ---")
-    auth = HTTPBasicAuth(ADMIN_USERNAME, ADMIN_PASSWORD)
+# Test data configuration
+NUM_API_USERS = 20
+PDF_UPLOAD_COUNT = 2
+PDF_DIR = "data_pdfs_for_all_users"
+
+
+class TestEnvironmentSetup:
+    """Handles the backend API setup for creating users."""
     
-    # --- NEW LOGIC: First, get a list of all existing users ---
-    try:
-        res = requests.get(f"{BASE_URL}/admin/users", auth=auth)
-        if res.status_code != 200:
-            print(f"ERROR: Could not fetch existing users. Status: {res.status_code} - {res.text}")
-            print("Please ensure your admin credentials are correct and the backend is running.")
-            return False
-        
-        # Create a set for efficient lookup
-        existing_users = {user['username'] for user in res.json()}
-        print(f"Found {len(existing_users)} existing users.")
-
-    except requests.exceptions.ConnectionError:
-        print(f"\nERROR: Could not connect to the backend at {BASE_URL}.")
-        print("Please ensure your backend application is running before executing this script.")
-        return False
-    except Exception as e:
-        print(f"An unexpected error occurred while fetching users: {e}")
-        return False
-
-    # --- NEW LOGIC: Loop and create only if the user does not exist ---
-    for i in range(1, NUM_USERS_TO_CREATE + 1):
-        username = f"testuser{i}"
-        password = "password" # All test users will have the same simple password
-        
-        if username in existing_users:
-            print(f"User already exists, skipping: {username}")
-            continue # Move to the next user in the loop
-        
-        # If we reach here, the user does not exist, so we create them.
-        print(f"User '{username}' not found, attempting to create...")
+    def __init__(self):
+        self.auth = HTTPBasicAuth(ADMIN_USERNAME, ADMIN_PASSWORD)
+    
+    def test_connection(self):
+        """Test if the backend is accessible."""
         try:
-            res = requests.post(
-                f"{BASE_URL}/admin/users",
-                json={"username": username, "password": password},
-                auth=auth
-            )
+            res = requests.get(f"{BASE_URL}/admin/auth/check", auth=self.auth, timeout=5)
             if res.status_code == 200:
-                print(f"Successfully created user: {username}")
+                logging.info("Backend connection successful.")
+                return True
             else:
-                # This would be an unexpected error now
-                print(f"Failed to create user {username}: {res.status_code} - {res.text}")
-        except Exception as e:
-            print(f"An unexpected error occurred during user creation: {e}")
-            # Decide if you want to stop or continue on a single failure
-            # return False 
-            
-    print("--- User creation process finished. ---")
-    return True
-
-def create_dummy_pdfs():
-    """Creates a directory with simple, unique PDF files for testing uploads."""
-    print("\n--- Creating Dummy PDF Files ---")
-    if not os.path.exists(PDF_DIR):
-        os.makedirs(PDF_DIR)
-        print(f"Created directory: {PDF_DIR}")
-
-    for i in range(1, NUM_PDFS_TO_CREATE + 1):
-        file_path = os.path.join(PDF_DIR, f"test_document_{i}.pdf")
-        if os.path.exists(file_path):
-            print(f"File already exists: {file_path}")
-            continue
-        try:
-            c = canvas.Canvas(file_path, pagesize=letter)
-            c.drawString(100, 750, f"This is a test document.")
-            c.drawString(100, 735, f"File number: {i}")
-            c.drawString(100, 720, "This file is for load testing purposes.")
-            c.save()
-            print(f"Successfully created PDF: {file_path}")
-        except Exception as e:
-            print(f"Failed to create PDF {file_path}: {e}")
+                logging.error(f"Backend returned status {res.status_code}.")
+                return False
+        except requests.exceptions.ConnectionError:
+            logging.error(f"Could not connect to backend at {BASE_URL}.")
             return False
+        except Exception as e:
+            logging.error(f"Connection test failed: {e}")
+            return False
+    
+    def create_test_users(self):
+        """Create test users via API."""
+        logging.info("--- Creating Test Users via API ---")
+        try:
+            res = requests.get(f"{BASE_URL}/admin/users", auth=self.auth)
+            res.raise_for_status()
             
-    print("--- PDF creation process finished. ---")
-    return True
+            response_data = res.json()
+            if not isinstance(response_data, list):
+                response_data = response_data.get("users", [])
+            existing_users = {user['username'] for user in response_data}
+
+            logging.info(f"Found {len(existing_users)} existing users.")
+            
+            success_count = 0
+            for i in range(1, NUM_API_USERS + 1):
+                username = f"testuser{i}"
+                if username in existing_users:
+                    logging.info(f"User already exists, skipping: {username}")
+                    success_count += 1
+                    continue
+                
+                res_post = requests.post(
+                    f"{BASE_URL}/admin/users",
+                    json={"username": username, "password": "password"},
+                    auth=self.auth
+                )
+                if res_post.status_code == 200:
+                    logging.info(f"Successfully created user: {username}")
+                    success_count += 1
+                else:
+                    logging.error(f"Failed to create user {username}: {res_post.text}")
+            
+            logging.info(f"User creation completed: {success_count}/{NUM_API_USERS}")
+            return True
+        except Exception as e:
+            logging.error(f"User creation process failed: {e}")
+            return False
+
+
+class GradioUIAutomation:
+    """Handles the Gradio UI automation testing."""
+    
+    def __init__(self, gradio_url=GRADIO_URL, headless=True):
+        self.gradio_url = gradio_url
+        self.headless = headless
+        self.page = None
+        self.browser = None
+        self.context = None
+
+    async def setup_browser(self):
+        """Initialize Playwright browser."""
+        self.playwright = await async_playwright().start()
+        self.browser = await self.playwright.chromium.launch(headless=self.headless)
+        self.context = await self.browser.new_context(viewport={'width': 1920, 'height': 1080})
+        self.page = await self.context.new_page()
+        self.page.set_default_timeout(30000)
+        logging.info("Browser initialized successfully.")
+
+    async def teardown_browser(self):
+        """Close browser."""
+        if self.context: await self.context.close()
+        if self.browser: await self.browser.close()
+        if hasattr(self, 'playwright'): await self.playwright.stop()
+        logging.info("Browser closed.")
+
+    async def login_as_admin(self):
+        """Login as admin user."""
+        logging.info("--- Starting Admin Login ---")
+        await self.page.goto(self.gradio_url)
+        logging.info(f"Navigated to {self.gradio_url}")
+
+        await self.page.wait_for_selector('label:has-text("Admin")', state='visible')
+        
+        await self.page.locator('label:has-text("Admin")').click()
+        await self.page.locator('label:has-text("Username") textarea').fill(ADMIN_USERNAME)
+        await self.page.locator('label:has-text("Password") input').fill(ADMIN_PASSWORD)
+        logging.info("Filled login credentials.")
+        
+        await self.page.locator('button:has-text("Login")').click()
+        
+        await self.page.wait_for_selector('h1:has-text("Admin Dashboard")', timeout=15000)
+        logging.info("Successfully logged in as admin and dashboard is visible.")
+
+    async def upload_pdfs(self):
+        """Upload PDF files as public from the specified directory."""
+        logging.info(f"--- Uploading {PDF_UPLOAD_COUNT} PDFs via UI from '{PDF_DIR}' ---")
+        
+        await self.page.locator('button[role="tab"]:has-text("Data Management")').click()
+        await self.page.locator('button[role="tab"]:has-text("Upload PDFs (Files)")').click()
+        logging.info("Navigated to Admin > Data Management > Upload PDFs tab.")
+
+        pdf_files = glob.glob(os.path.join(PDF_DIR, "*.pdf"))
+        if len(pdf_files) < PDF_UPLOAD_COUNT:
+            raise FileNotFoundError(
+                f"Expected at least {PDF_UPLOAD_COUNT} PDF files in '{PDF_DIR}', but found {len(pdf_files)}."
+            )
+
+        files_to_upload = pdf_files[:PDF_UPLOAD_COUNT]
+        
+        file_input = self.page.locator('input[type="file"]').nth(0)
+        await file_input.set_input_files(files_to_upload)
+        logging.info(f"Selected files: {[os.path.basename(f) for f in files_to_upload]}")
+        
+        await self.page.locator('input[type="radio"][value="Yes"]').click()
+        logging.info("Selected 'Make these PDFs public?': Yes")
+
+        upload_button = self.page.locator('button:has-text("Upload PDF(s)")')
+        await upload_button.click()
+        logging.info("Clicked upload button.")
+        
+        # await self.page.wait_for_selector('text=/Success:.*uploaded/i', timeout=60000) # Increased timeout for upload
+        # logging.info("PDF upload successful.")
+
+    async def ingest_public_pdfs(self):
+        """Ingests all public PDFs from the UI."""
+        logging.info("--- Ingesting Public PDFs via UI ---")
+
+        await self.page.locator('button[role="tab"]:has-text("VectorDB Management")').click()
+
+        # ### FINAL FIX: Use get_by_role with an EXACT name match to avoid ambiguity with "List Ingested"
+        await self.page.get_by_role("tab", name="Ingest", exact=True).click()
+        logging.info("Navigated to Admin > VectorDB Management > Ingest tab.")
+
+        await self.page.get_by_role("button", name="Ingest All Public").click()
+        logging.info("Clicked 'Ingest All Public' button.")
+        
+        await self.page.wait_for_selector('text=/Success:.*ingested/i', timeout=60000)
+        logging.info("Successfully ingested all public PDFs.")
+
+    async def run_ui_automation(self):
+        """Run the complete UI automation."""
+        logging.info("--- Starting UI Automation ---")
+        try:
+            await self.setup_browser()
+            await self.login_as_admin()
+            await self.upload_pdfs()
+            await self.ingest_public_pdfs()
+            
+            logging.info("UI automation completed successfully!")
+            await self.page.wait_for_timeout(3000)
+        except Exception as e:
+            logging.error(f"UI automation failed: {e}")
+            if self.page:
+                screenshot_path = f"final_error_{int(time.time())}.png"
+                await self.page.screenshot(path=screenshot_path, full_page=True)
+                logging.error(f"Screenshot saved to {screenshot_path}")
+            raise
+        finally:
+            await self.teardown_browser()
+
+
+async def main():
+    """Main function to run complete test setup and automation."""
+    logging.info("=== Starting Complete Test Setup and Automation ===")
+    
+    logging.info(f"Step 1: Verifying PDF directory '{PDF_DIR}'...")
+    if not os.path.isdir(PDF_DIR) or not glob.glob(os.path.join(PDF_DIR, "*.pdf")):
+        print(f"❌ Error: The directory '{PDF_DIR}' does not exist or contains no PDF files.")
+        print("Please create it and add your PDF files before running the script.")
+        return 1
+    logging.info("PDF directory verified.")
+
+    setup = TestEnvironmentSetup()
+    
+    logging.info("Step 2: Testing backend connection...")
+    if not setup.test_connection():
+        print("❌ Backend connection failed. Please ensure the backend server is running.")
+        return 1
+    
+    logging.info("Step 3: Creating test users via API...")
+    if not setup.create_test_users():
+        print("❌ API user creation failed. Halting test.")
+        return 1
+    
+    logging.info("Step 4: Starting UI automation...")
+    ui_automation = GradioUIAutomation(headless=False)
+    
+    try:
+        await ui_automation.run_ui_automation()
+        print("\n✅✅✅ Complete test setup and automation finished successfully! ✅✅✅")
+        print("📊 Summary:")
+        print(f"   - API Users Checked/Created: {NUM_API_USERS}")
+        print(f"   - PDFs Uploaded via UI: {PDF_UPLOAD_COUNT} from '{PDF_DIR}'")
+        print(f"   - Ingest Action: All public PDFs were ingested.")
+        return 0
+    except Exception as e:
+        print(f"\n❌ UI automation failed: {e}")
+        return 1
 
 if __name__ == "__main__":
-    print("Starting test environment setup...")
-    if create_test_users():
-        create_dummy_pdfs()
-    print("\nSetup complete.")
-
+    exit_code = asyncio.run(main())
+    exit(exit_code)

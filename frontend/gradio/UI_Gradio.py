@@ -104,7 +104,12 @@ def handle_api_post(endpoint: str, auth_state: Dict[str, Any], json_data: dict =
     if not auth_object:
         return gr.Error("Authentication is missing. Please log in again.")
     try:
-        res = requests.post(f"{BASE_URL}/{endpoint}", auth=auth_object, json=json_data, files=files_data, data=data_payload, params=params, timeout=15)
+        # Increase the timeout for potentially long operations like file uploads
+        # You can make this even longer if you upload very large files.
+        timeout_seconds = 60 if files_data else 15
+        
+        res = requests.post(f"{BASE_URL}/{endpoint}", auth=auth_object, json=json_data, files=files_data, data=data_payload, params=params, timeout=timeout_seconds)
+        
         if res.status_code == 200:
             response_data = res.json()
             gr.Info(f"Success: {response_data.get('detail') or response_data.get('message') or response_data.get('uploaded')}")
@@ -150,7 +155,7 @@ def user_chat(auth_state: dict, message: str, history: List[Tuple[str, str]]):
     try:
         payload = {"user_id": auth_state['username'], "message": message}
         res = requests.post(f"{BASE_URL}/user/chat", json=payload, auth=auth_object)
-        bot_response = res.json().get("response", "Sorry, an error occurred.") if res.status_code == 200 else f"Error: {res.text}"
+        bot_response = "Answer : \n" + res.json().get("response", "Sorry, an error occurred.") + "\nPrompt : \n\n" + res.json().get("prompt", "Sorry, an error occurred.")  if res.status_code == 200 else f"Error: {res.text}"
     except Exception as e:
         bot_response = f"An error occurred: {e}"
         logging.error(f"Chat request failed: {e}")
@@ -223,11 +228,11 @@ with gr.Blocks(theme=gr.themes.Soft(), title="RAG Chatbot Portal") as demo:
                         admin_upload_files = gr.File(label="Select PDF files", file_count="multiple", file_types=[".pdf"])
                         admin_upload_is_public = gr.Radio(["No", "Yes"], label="Make these PDFs public?", value="No")
                         admin_upload_btn = gr.Button("Upload PDF(s)", variant="primary")
-                    with gr.Tab("Upload from Folder"):
-                        gr.Markdown("Use this to upload all PDFs from a single folder. Navigate to the folder and select all files you wish to upload (e.g., using Ctrl+A).")
-                        admin_upload_folder_files = gr.File(label="Select all PDF files from a folder", file_count="multiple", file_types=[".pdf"])
-                        admin_upload_folder_is_public = gr.Radio(["No", "Yes"], label="Make these PDFs public?", value="No")
-                        admin_upload_folder_btn = gr.Button("Upload Folder Contents", variant="primary")
+                    # with gr.Tab("Upload from Folder"):
+                    #     gr.Markdown("Use this to upload all PDFs from a single folder. Navigate to the folder and select all files you wish to upload (e.g., using Ctrl+A).")
+                    #     admin_upload_folder_files = gr.File(label="Select all PDF files from a folder", file_count="multiple", file_types=[".pdf"])
+                    #     admin_upload_folder_is_public = gr.Radio(["No", "Yes"], label="Make these PDFs public?", value="No")
+                    #     admin_upload_folder_btn = gr.Button("Upload Folder Contents", variant="primary")
                     with gr.Tab("List & Delete PDFs"):
                         admin_pdfs_df = gr.Dataframe(interactive=False)
                         admin_list_pdfs_btn = gr.Button("Refresh PDF List")
@@ -279,11 +284,11 @@ with gr.Blocks(theme=gr.themes.Soft(), title="RAG Chatbot Portal") as demo:
                         user_upload_files = gr.File(label="Select PDF files", file_count="multiple", file_types=[".pdf"])
                         user_upload_is_public = gr.Radio(["No", "Yes"], label="Make these PDFs public?", value="No")
                         user_upload_btn = gr.Button("Upload", variant="primary")
-                    with gr.Tab("Upload from Folder"):
-                        gr.Markdown("Use this to upload all PDFs from a single folder. Navigate to the folder and select all files you wish to upload (e.g., using Ctrl+A).")
-                        user_upload_folder_files = gr.File(label="Select all PDF files from a folder", file_count="multiple", file_types=[".pdf"])
-                        user_upload_folder_is_public = gr.Radio(["No", "Yes"], label="Make these PDFs public?", value="No")
-                        user_upload_folder_btn = gr.Button("Upload Folder Contents", variant="primary")
+                    # with gr.Tab("Upload from Folder"):
+                    #     gr.Markdown("Use this to upload all PDFs from a single folder. Navigate to the folder and select all files you wish to upload (e.g., using Ctrl+A).")
+                    #     user_upload_folder_files = gr.File(label="Select all PDF files from a folder", file_count="multiple", file_types=[".pdf"])
+                    #     user_upload_folder_is_public = gr.Radio(["No", "Yes"], label="Make these PDFs public?", value="No")
+                    #     user_upload_folder_btn = gr.Button("Upload Folder Contents", variant="primary")
                     with gr.Tab("List & Delete My PDFs"):
                         user_pdfs_df = gr.Dataframe(interactive=False)
                         user_list_pdfs_btn = gr.Button("Refresh My PDF List")
@@ -358,7 +363,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="RAG Chatbot Portal") as demo:
     admin_view_chat_btn.click(lambda auth, u: "\n".join(get_api_data(f"admin/chat/history/{u}", auth, "history")), [auth_state, admin_chat_user_select], admin_chat_history_display)
     
     admin_upload_btn.click(lambda auth, f, p: upload_files_action(auth, f, p, "admin"), [auth_state, admin_upload_files, admin_upload_is_public], None).then(refresh_admin_view, auth_state, [admin_pdfs_df, admin_ingested_df, admin_delete_user_select, admin_reset_pw_select, admin_chat_user_select, admin_delete_files_select, admin_ingest_pdf_select, admin_ingest_user_select, admin_remove_pdf_select, admin_remove_user_data_select, admin_clear_user_mem_select]).then(lambda: gr.update(value=None), None, admin_upload_files)
-    admin_upload_folder_btn.click(lambda auth, f, p: upload_files_action(auth, f, p, "admin"), [auth_state, admin_upload_folder_files, admin_upload_folder_is_public], None).then(refresh_admin_view, auth_state, [admin_pdfs_df, admin_ingested_df, admin_delete_user_select, admin_reset_pw_select, admin_chat_user_select, admin_delete_files_select, admin_ingest_pdf_select, admin_ingest_user_select, admin_remove_pdf_select, admin_remove_user_data_select, admin_clear_user_mem_select]).then(lambda: gr.update(value=None), None, admin_upload_folder_files)
+    # admin_upload_folder_btn.click(lambda auth, f, p: upload_files_action(auth, f, p, "admin"), [auth_state, admin_upload_folder_files, admin_upload_folder_is_public], None).then(refresh_admin_view, auth_state, [admin_pdfs_df, admin_ingested_df, admin_delete_user_select, admin_reset_pw_select, admin_chat_user_select, admin_delete_files_select, admin_ingest_pdf_select, admin_ingest_user_select, admin_remove_pdf_select, admin_remove_user_data_select, admin_clear_user_mem_select]).then(lambda: gr.update(value=None), None, admin_upload_folder_files)
     
     admin_list_pdfs_btn.click(lambda auth: list_data("admin/pdf", auth, "pdfs"), auth_state, admin_pdfs_df)
     admin_delete_files_btn.click(lambda auth, f: handle_api_post("admin/pdf/delete", auth, json_data={"filenames": f}), [auth_state, admin_delete_files_select], None).then(refresh_admin_view, auth_state, [admin_pdfs_df, admin_ingested_df, admin_delete_user_select, admin_reset_pw_select, admin_chat_user_select, admin_delete_files_select, admin_ingest_pdf_select, admin_ingest_user_select, admin_remove_pdf_select, admin_remove_user_data_select, admin_clear_user_mem_select])
@@ -376,7 +381,7 @@ with gr.Blocks(theme=gr.themes.Soft(), title="RAG Chatbot Portal") as demo:
     user_clear_chat_btn.click(lambda: ([], None), None, [user_chatbot, user_msg_box], queue=False)
 
     user_upload_btn.click(lambda auth, f, p: upload_files_action(auth, f, p, "user"), [auth_state, user_upload_files, user_upload_is_public], None).then(refresh_user_view, auth_state, [user_pdfs_df, user_ingested_df, user_delete_storage_select, user_ingest_select, user_remove_one_data_select]).then(lambda: gr.update(value=None), None, user_upload_files)
-    user_upload_folder_btn.click(lambda auth, f, p: upload_files_action(auth, f, p, "user"), [auth_state, user_upload_folder_files, user_upload_folder_is_public], None).then(refresh_user_view, auth_state, [user_pdfs_df, user_ingested_df, user_delete_storage_select, user_ingest_select, user_remove_one_data_select]).then(lambda: gr.update(value=None), None, user_upload_folder_files)
+    # user_upload_folder_btn.click(lambda auth, f, p: upload_files_action(auth, f, p, "user"), [auth_state, user_upload_folder_files, user_upload_folder_is_public], None).then(refresh_user_view, auth_state, [user_pdfs_df, user_ingested_df, user_delete_storage_select, user_ingest_select, user_remove_one_data_select]).then(lambda: gr.update(value=None), None, user_upload_folder_files)
     
     user_list_pdfs_btn.click(lambda auth: list_data("user/pdf", auth, "pdfs"), auth_state, user_pdfs_df)
     user_delete_storage_btn.click(lambda auth, f: handle_api_post("user/pdf/delete", auth, json_data={"filenames": f}), [auth_state, user_delete_storage_select], None).then(refresh_user_view, auth_state, [user_pdfs_df, user_ingested_df, user_delete_storage_select, user_ingest_select, user_remove_one_data_select])
