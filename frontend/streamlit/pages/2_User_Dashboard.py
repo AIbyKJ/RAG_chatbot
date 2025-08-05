@@ -26,11 +26,9 @@ def get_my_pdfs():
         return []
 
 def get_my_ingested_pdfs():
-    print("This func is called")
     try:
         res = requests.get(f"{BASE_URL}/user/vectordb/pdf", auth=auth)
         if res.status_code == 200:
-            print(res.json().get("ingested_pdfs", []))
             return res.json().get("ingested_pdfs", [])
         return []
     except Exception:
@@ -72,7 +70,7 @@ if menu == "Chat":
                 payload = {"user_id": username, "message": prompt}
                 res = requests.post(f"{BASE_URL}/user/chat", json=payload, auth=auth)
                 if res.status_code == 200:
-                    full_response = res.json().get("response", "Sorry, I encountered an error.")
+                    full_response = "Answer : \n" + res.json().get("response", "Sorry, I encountered an error.") + "\n\n Prompt \n" + res.json().get("prompt", "Sorry, I encountered an error.")
                 else:
                     full_response = f"Error: {res.text}"
             except Exception as e:
@@ -156,7 +154,7 @@ elif menu == "VectorDB Management":
 
     with tabs[0]: # Ingest
         st.subheader("Ingest Your PDFs into the VectorDB")
-        st.info("Ingesting a PDF makes its content available for the chat model to use in its responses.")
+        # st.info("Ingesting a PDF makes its content available for the chat model to use in its responses.")
         
         st.markdown("#### Ingest All of Your PDFs")
         if st.button("Ingest All My PDFs"):
