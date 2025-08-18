@@ -71,6 +71,11 @@ Complete these steps once before running either test.
     └── ... (and so on)
     ```
 
+    Setup Test Environment.
+    ```bash
+    python setup_test_environment.py
+    ```
+
 ### Running the Tests
 
 Ensure the backend and the specific frontend you want to test are running.
