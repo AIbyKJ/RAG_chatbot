@@ -60,7 +60,7 @@ def get_my_ingested_pdfs(auth_state: Dict[str, Any]) -> List[str]:
     return [pdf['filename'] for pdf in pdfs_data] if pdfs_data else []
 
 
-# --- Main Application Logic --- (No changes here, except user_chat)
+# --- Main Application Logic ---
 def login(role: str, username: str, password: str):
     logging.info(f"Login attempt for user: '{username}', role: {role}")
     if not username or not password:
@@ -84,6 +84,7 @@ def login(role: str, username: str, password: str):
         logging.error(f"Login connection error: {e}")
         return None, gr.update(visible=True), gr.update(visible=False), gr.update(visible=False)
 
+# FIX: Added return values to clear username and password fields on logout
 def logout():
     logging.info("Logout triggered.")
     gr.Info("You have been logged out.")
@@ -93,7 +94,8 @@ def logout():
         None, gr.update(visible=True), gr.update(visible=False), gr.update(visible=False),
         [], empty_df, empty_df, empty_df, "", empty_df, empty_df, empty_choices,
         empty_choices, empty_choices, empty_choices, empty_choices, empty_choices,
-        empty_choices, empty_choices, empty_choices, empty_choices, empty_choices, empty_choices
+        empty_choices, empty_choices, empty_choices, empty_choices, empty_choices, empty_choices,
+        "", ""  # Clear username and password textboxes
     )
 
 def handle_api_post(endpoint: str, auth_state: Dict[str, Any], json_data: dict = None, files_data: list = None, data_payload: dict = None, params: dict = None):
@@ -136,7 +138,6 @@ def handle_api_delete(endpoint: str, auth_state: Dict[str, Any]):
         logging.error(f"Exception on DELETE to {endpoint}: {e}")
 
 # --- Chat Function ---
-# FIX: Updated user_chat to handle the new 'messages' format
 def user_chat(auth_state: dict, message: str, history: List[Dict[str, str]]):
     if not message:
         return "", history
@@ -264,7 +265,6 @@ with gr.Blocks(theme=gr.themes.Soft(), title="RAG Chatbot Portal") as demo:
             logout_btn_user = gr.Button("Logout")
         with gr.Tabs() as user_tabs:
             with gr.Tab("Chat"):
-                # FIX: Added type='messages' to the Chatbot component
                 user_chatbot = gr.Chatbot(label="RAG Chatbot", height=500, type='messages')
                 user_msg_box = gr.Textbox(label="Your Message", placeholder="Type a message and press Enter...", show_label=False)
                 user_clear_chat_btn = gr.Button("Clear Chat")
@@ -308,7 +308,9 @@ with gr.Blocks(theme=gr.themes.Soft(), title="RAG Chatbot Portal") as demo:
         admin_ingest_pdf_select, admin_ingest_user_select, admin_remove_pdf_select, admin_remove_user_data_select,
         admin_clear_user_mem_select, user_delete_storage_select, user_ingest_select, user_remove_one_data_select
     ]
-    all_stateful_outputs = [auth_state, login_view, admin_view, user_view, user_chatbot] + admin_stateful_components
+    
+    # FIX: Added login_username and login_password to the list of outputs for the logout function
+    all_stateful_outputs = [auth_state, login_view, admin_view, user_view, user_chatbot] + admin_stateful_components + [login_username, login_password]
 
     login_btn.click(login, [login_role, login_username, login_password], [auth_state, login_view, admin_view, user_view])
     logout_btn_admin.click(logout, None, all_stateful_outputs)
@@ -339,7 +341,6 @@ with gr.Blocks(theme=gr.themes.Soft(), title="RAG Chatbot Portal") as demo:
             gr.update(choices=pdfs), gr.update(choices=pdfs), gr.update(choices=ingested_pdfs)
         )
 
-    # FIX: Replaced the incorrect '.change' on the Column with '.select' on the Tabs
     admin_outputs_for_refresh = [admin_pdfs_df, admin_ingested_df, admin_delete_user_select, admin_reset_pw_select, admin_chat_user_select, admin_delete_files_select, admin_ingest_pdf_select, admin_ingest_user_select, admin_remove_pdf_select, admin_remove_user_data_select, admin_clear_user_mem_select]
     user_outputs_for_refresh = [user_pdfs_df, user_ingested_df, user_delete_storage_select, user_ingest_select, user_remove_one_data_select]
     
